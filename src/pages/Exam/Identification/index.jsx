@@ -33,6 +33,7 @@ export default function ExamIdentification() {
   const setStep = useExamStore((s) => s.setStep);
   const storedCpf = useExamStore((s) => s.cpf);
   const [cpfBlocked, setCpfBlocked] = useState('');
+  const [lastExamData, setLastExamData] = useState(null);
 
   const {
     register,
@@ -52,6 +53,7 @@ export default function ExamIdentification() {
     if (storedCpf) {
       setValue('cpf', storedCpf);
       examService.getLatestByCpf(storedCpf).then((last) => {
+        setLastExamData(last);
         if (last) {
           reset({
             name: last.name || '',
@@ -86,7 +88,7 @@ export default function ExamIdentification() {
       setCpfBlocked('CPF inválido');
       return;
     }
-    const last = await examService.getLatestByCpf(data.cpf);
+    const last = lastExamData || await examService.getLatestByCpf(data.cpf);
     if (last && last.status === 'approved') {
       setCpfBlocked('CPF já possui aprovação');
       return;

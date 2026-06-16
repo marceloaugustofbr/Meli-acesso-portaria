@@ -17,26 +17,16 @@ export default function ExamIntro() {
     <ExamLayout>
       <div className="stagger">
         <div className="has-text-centered">
-          <div style={{
-            width: 80,
-            height: 80,
-            borderRadius: 20,
-            background: 'linear-gradient(135deg, #D40511, #9a030c)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1.25rem',
-          }}>
-            <i className="fas fa-shield-alt fa-2x" style={{ color: '#fff' }} />
+          <div style={{ margin: '0 auto 1.25rem', textAlign: 'center' }}>
+            <img src="/dhl-logov2.png" alt="DHL" style={{ width: 144 }} />
           </div>
           <h1 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#D40511', margin: '0 0 0.5rem' }}>
-            Treinamento de Segurança
+            Treinamento de Segurança Obrigatório
           </h1>
           <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6, maxWidth: 480, margin: '0 auto 1.5rem' }}>
-            Bem-vindo ao treinamento de Segurança.
-            <br />
-            Antes de acessar nossas operações é obrigatório assistir ao treinamento,
-            realizar a avaliação e concordar com os termos de segurança.
+            Para ter acesso às operações da DHL, é obrigatório a realização do treinamento de segurança.
+            <br /><br />
+            Somente após a conclusão e aprovação, você será <strong>liberado na portaria</strong> para acessar as operações.
           </p>
         </div>
 
@@ -46,7 +36,7 @@ export default function ExamIntro() {
           padding: '1.25rem 1.5rem',
           marginBottom: '1.5rem',
         }}>
-          <p style={{ fontWeight: 700, fontSize: '0.85rem', margin: '0 0 0.75rem', color: '#444' }}>Funcionamento da Prova:</p>
+          <p style={{ fontWeight: 700, fontSize: '0.85rem', margin: '0 0 0.75rem', color: '#444' }}>Etapas do Treinamento:</p>
           <ul style={{ fontSize: '0.85rem', color: '#555', lineHeight: 1.8, margin: 0, paddingLeft: '1.25rem' }}>
             <li>Assista ao vídeo completo sobre segurança</li>
             <li>Responda <strong>10 perguntas</strong> sobre o conteúdo</li>

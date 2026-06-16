@@ -127,16 +127,16 @@ export default function ExamCheck() {
               <div
                 className="box"
                 style={{
-                  border: '2px solid #D40511',
+                  border: '2px solid #28A745',
                   borderRadius: 16,
                   padding: 0,
                   overflow: 'hidden',
-                  boxShadow: '0 8px 24px rgba(212,5,17,0.15)',
+                  boxShadow: '0 8px 24px rgba(40,167,69,0.15)',
                 }}
               >
                 <div
                   className="has-text-white has-text-centered"
-                  style={{ background: 'linear-gradient(135deg, #D40511 0%, #9a030c 100%)', padding: '32px 24px 24px' }}
+                  style={{ background: 'linear-gradient(135deg, #28A745 0%, #1e7e34 100%)', padding: '32px 24px 24px' }}
                 >
                   <div
                     style={{
@@ -175,7 +175,7 @@ export default function ExamCheck() {
                       style={{
                         display: 'inline-block',
                         background: '#FFCC00',
-                        color: '#D40511',
+                        color: '#28A745',
                         fontWeight: 700,
                         fontSize: '0.85rem',
                         borderRadius: 20,
@@ -199,7 +199,7 @@ export default function ExamCheck() {
                 <button
                   className="button is-medium"
                   onClick={handleFinish}
-                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#D40511', color: '#fff', border: 'none' }}
+                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#28A745', color: '#fff', border: 'none' }}
                 >
                   <span className="icon is-small"><i className="fas fa-check" /></span>
                   <span>FINALIZAR</span>
@@ -269,24 +269,32 @@ export default function ExamCheck() {
                   </div>
 
                   <div style={{ textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 16 }}>
-                    <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 4px' }}>
-                      Realizado em {examData.createdAt ? new Date(examData.createdAt).toLocaleDateString('pt-BR') : '-'}
+                    <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 12px' }}>
+                      Ultima tentativa realizada: {examData.createdAt ? new Date(examData.createdAt).toLocaleString('pt-BR') : '-'}
                     </p>
-                    <p style={{ fontSize: '0.8rem', color: '#888', margin: 0 }}>
-                      Você não atingiu a nota mínima necessária.
-                    </p>
+                    <div style={{ background: '#FFF3E0', borderRadius: 10, padding: '12px 16px', textAlign: 'left', fontSize: '0.8rem', color: '#E65100', lineHeight: 1.5 }}>
+                      <strong>Atenção:</strong> É necessário obter nota superior a 70% para liberação de acesso às operações. Enquanto não atingir a nota mínima, <strong>não será permitida a entrada</strong> e você será barrado na portaria.
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <div style={{ textAlign: 'center', marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
                 <button
                   className="button is-medium"
                   onClick={handleRetake}
                   style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#D40511', color: '#fff', border: 'none' }}
                 >
                   <span className="icon is-small"><i className="fas fa-redo" /></span>
-                  <span>REFAZER</span>
+                  <span>REFAZER PROVA</span>
+                </button>
+                <button
+                  className="button is-medium"
+                  onClick={handleFinish}
+                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#fff', color: '#D40511', border: '2px solid #D40511' }}
+                >
+                  <span className="icon is-small"><i className="fas fa-sign-out-alt" /></span>
+                  <span>SAIR</span>
                 </button>
               </div>
             </div>

@@ -24,7 +24,7 @@ const ExamTerms = lazy(() => import('../Exam/Terms'));
 const ExamSignature = lazy(() => import('../Exam/Signature'));
 const ExamResult = lazy(() => import('../Exam/Result'));
 const AdminDashboard = lazy(() => import('../Admin/Dashboard'));
-const AdminExams = lazy(() => import('../Admin/Exams'));
+
 const AdminExamDetail = lazy(() => import('../Admin/ExamDetail'));
 const AdminUsers = lazy(() => import('../Admin/Users'));
 const AdminSettings = lazy(() => import('../Admin/Settings'));
@@ -42,7 +42,7 @@ const ROUTES = {
   EXAM_SIGNATURE: '/exam/signature',
   EXAM_RESULT: '/exam/result',
   ADMIN_DASHBOARD: '/admin/dashboard',
-  ADMIN_EXAMS: '/admin/exams',
+
   ADMIN_EXAM_DETAIL: '/admin/exam/:id',
   ADMIN_USERS: '/admin/users',
   ADMIN_SETTINGS: '/admin/settings',
@@ -71,13 +71,12 @@ export default function RouterComponent() {
             <Route exact path={ROUTES.LOGIN} component={Login} />
             <Route exact path="/portaria" component={Portaria} />
 
-            <Route exact path={ROUTES.EXAM_INTRO} component={ExamIntro} />
+            <ExamGuard exact path={ROUTES.EXAM_INTRO} step="intro" component={ExamIntro} />
             {stepRoutes.map(({ path, step, component }) => (
               <ExamGuard key={path} exact path={path} step={step} component={component} />
             ))}
 
             <ProtectedRoute exact path={ROUTES.ADMIN_DASHBOARD} component={AdminDashboard} />
-            <ProtectedRoute exact path={ROUTES.ADMIN_EXAMS} component={AdminExams} />
             <ProtectedRoute exact path={ROUTES.ADMIN_EXAM_DETAIL} component={AdminExamDetail} />
             <ProtectedRoute exact path={ROUTES.ADMIN_USERS} component={AdminUsers} />
             <ProtectedRoute exact path={ROUTES.ADMIN_SETTINGS} component={AdminSettings} />

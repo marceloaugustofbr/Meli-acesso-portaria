@@ -24,4 +24,4 @@ const useFormatDate = (value, options = {}) => {
 export { useChangeHandler, useFormatMessage, useFormatDate };
 export { useAuth } from './useAuth';
 export { useQuestions, useShuffledQuestions } from './useQuestions';
-export { useExams, useExam, useExamStats, useRecentExams } from './useExams';
+export { useExam, useExamStats, useLatestExams } from './useExams';

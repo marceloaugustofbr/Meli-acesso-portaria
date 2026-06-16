@@ -24,16 +24,21 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isAdmin();
     }
 
-    match /security_exams/{examId} {
-      allow read: if isAuthenticated() && isAdmin();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && isAdmin();
+    match /latest_exams/{cpf} {
+      allow get: if request.auth == null || isAuthenticated();
+      allow list: if isAuthenticated();
+      allow create, update: if request.auth == null || isAuthenticated();
       allow delete: if isAuthenticated() && isAdmin();
     }
 
+    match /aggregations/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if request.auth == null || isAuthenticated();
+    }
+
     match /questions/{questionId} {
-      allow read: if true;
-      allow write: if isAuthenticated() && isAdmin();
+      allow read: if request.auth == null || isAuthenticated();
+      allow write: if request.auth == null || isAuthenticated();
     }
   }
 }

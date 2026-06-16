@@ -20,7 +20,17 @@ export default function ExamSignature() {
   const handleConfirm = async () => {
     if (sigRef.current?.isEmpty()) return;
     setSaving(true);
-    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png');
+
+    const trimmed = sigRef.current.getTrimmedCanvas();
+    const maxWidth = 300;
+    const scale = Math.min(1, maxWidth / trimmed.width);
+    const resized = document.createElement('canvas');
+    resized.width = Math.round(trimmed.width * scale);
+    resized.height = Math.round(trimmed.height * scale);
+    const ctx = resized.getContext('2d');
+    ctx.drawImage(trimmed, 0, 0, resized.width, resized.height);
+
+    const dataUrl = resized.toDataURL('image/png');
     setSignature(dataUrl);
     await new Promise((r) => setTimeout(r, 500));
     setSaving(false);

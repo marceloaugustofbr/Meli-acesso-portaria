@@ -79,7 +79,7 @@ export default function AdminExamDetail() {
         </div>
       </div>
 
-      {exam.signatureUrl && (
+      {exam.signature && (
         <div className="box">
           <h2 className="title is-6 mb-3">Assinatura</h2>
           <img src={exam.signatureUrl} alt="Assinatura" style={{ maxHeight: 120, border: '1px solid #ddd', borderRadius: 4 }} />

@@ -9,10 +9,75 @@ export default function Portaria() {
   const [result, setResult] = useState(null);
   const [examData, setExamData] = useState(null);
   const [cpfError, setCpfError] = useState('');
+  const [accessPin, setAccessPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [authorized, setAuthorized] = useState(
+    () => sessionStorage.getItem('portaria_auth') === 'true'
+  );
+
+  const handlePinSubmit = (e) => {
+    e.preventDefault();
+    if (accessPin === (process.env.REACT_APP_PORTARIA_PIN || '1234')) {
+      sessionStorage.setItem('portaria_auth', 'true');
+      setAuthorized(true);
+      setPinError('');
+    } else {
+      setPinError('Senha incorreta');
+    }
+  };
 
   useEffect(() => {
-    cpfRef.current?.focus();
-  }, []);
+    if (authorized) cpfRef.current?.focus();
+  }, [authorized]);
+
+  if (!authorized) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: '#f5f5f5',
+        fontFamily: "'Nunito', sans-serif",
+      }}>
+        <form onSubmit={handlePinSubmit} style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: 32,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+          width: '100%',
+          maxWidth: 360,
+          textAlign: 'center',
+        }}>
+          <i className="fas fa-lock" style={{ fontSize: '2rem', color: '#D40511', marginBottom: 16 }} />
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#D40511', margin: '0 0 4px' }}>
+            Acesso Restrito
+          </h1>
+          <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 20px' }}>
+            Informe a senha de acesso à portaria
+          </p>
+          <input
+            type="password"
+            className="input is-medium"
+            placeholder="Senha"
+            value={accessPin}
+            onChange={(e) => { setAccessPin(e.target.value); setPinError(''); }}
+            autoFocus // eslint-disable-line jsx-a11y/no-autofocus
+            style={{ textAlign: 'center', marginBottom: 12 }}
+          />
+          {pinError && <p style={{ fontSize: '0.8rem', color: '#D32F2F', margin: '0 0 12px' }}>{pinError}</p>}
+          <button
+            type="submit"
+            className="button is-medium is-fullwidth"
+            style={{ background: '#D40511', color: '#fff', border: 'none' }}
+          >
+            Acessar
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   const handleCPFChange = (e) => {
     setCpf(maskCPF(e.target.value));
@@ -86,6 +151,15 @@ export default function Portaria() {
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ textAlign: 'right', marginBottom: 8 }}>
+            <button
+              className="button is-small is-light"
+              onClick={() => { sessionStorage.removeItem('portaria_auth'); setAuthorized(false); setResult(null); setExamData(null); }}
+              style={{ fontSize: '0.75rem' }}
+            >
+              <i className="fas fa-sign-out-alt" style={{ marginRight: 4 }} /> Sair
+            </button>
+          </div>
           <img src="/dhl-logo.png" alt="DHL" style={{ width: '50%', height: 'auto' }} />
           <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#D40511', margin: 0 }}>
             Consulta de Liberação
@@ -135,15 +209,15 @@ export default function Portaria() {
               width: 72,
               height: 72,
               borderRadius: '50%',
-              background: '#fff8e6',
+              background: '#e8f5e9',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px',
             }}>
-              <i className="fas fa-check-circle fa-3x" style={{ color: '#FFCC00' }} />
+              <i className="fas fa-check-circle fa-3x" style={{ color: '#28A745' }} />
             </div>
-            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#D40511', margin: 0 }}>
+            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#28A745', margin: 0 }}>
               APTO
             </p>
             <p style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a2e', margin: '8px 0 4px' }}>
@@ -178,9 +252,9 @@ export default function Portaria() {
               Nota: {examData.score ?? '-'}
             </p>
             <button
-              className="button is-light is-medium is-fullwidth"
+              className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20 }}
+              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
             >
               Nova Consulta
             </button>
@@ -230,9 +304,9 @@ export default function Portaria() {
               </div>
             </div>
             <button
-              className="button is-light is-medium is-fullwidth"
+              className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20 }}
+              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
             >
               Nova Consulta
             </button>
@@ -260,9 +334,9 @@ export default function Portaria() {
               CPF {formatCPF(cpf)} não possui registro de treinamento.
             </p>
             <button
-              className="button is-light is-medium is-fullwidth"
+              className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20 }}
+              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
             >
               Nova Consulta
             </button>

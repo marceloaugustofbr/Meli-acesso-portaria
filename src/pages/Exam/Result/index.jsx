@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import classNames from 'classnames';
+import { shallow } from 'zustand/shallow';
 import { useExamStore } from '../../../store';
 import { examService } from '../../../services';
 import { formatCPF } from '../../../utils/cpf';
@@ -29,7 +30,16 @@ function AnimatedNumber({ value, duration = 800 }) {
 
 export default function ExamResult() {
   const history = useHistory();
-  const { identification, startTime, answers, signature, reset } = useExamStore();
+  const { identification, startTime, answers, signature, reset } = useExamStore(
+    (s) => ({
+      identification: s.identification,
+      startTime: s.startTime,
+      answers: s.answers,
+      signature: s.signature,
+      reset: s.reset,
+    }),
+    shallow
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [attemptCount, setAttemptCount] = useState(0);

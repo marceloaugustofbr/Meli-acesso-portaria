@@ -10,9 +10,10 @@ export default function ExamGuard({ component: Component, step, path, exact }) {
   const currentStep = useExamStore((s) => s.step);
 
   const currentIndex = stepOrder.indexOf(currentStep);
+  const safeIndex = currentIndex === -1 ? 0 : currentIndex;
   const allowedIndex = stepOrder.indexOf(step);
 
-  if (allowedIndex > currentIndex) {
+  if (allowedIndex > safeIndex) {
     return <Redirect to={ROUTES.EXAM_INTRO} />;
   }
 

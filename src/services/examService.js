@@ -2,16 +2,60 @@ import firebase from 'firebase/app';
 import { firestore } from '../firebase';
 
 const FIELD_VALUE = firebase.firestore.FieldValue;
-const COLLECTION = 'security_exams';
+const LATEST_COLLECTION = 'latest_exams';
 const AGGREGATION_DOC = 'aggregations/examStats';
+
+const cpfDigits = (cpf) => (cpf || '').replace(/\D/g, '');
 
 export const examService = {
   async create(examData) {
-    const docRef = await firestore.collection(COLLECTION).add({
-      ...examData,
-      createdAt: new Date().toISOString(),
-    });
-    return docRef.id;
+    const now = new Date().toISOString();
+    const key = cpfDigits(examData.cpf);
+    if (!key) return null;
+
+    const existing = await firestore.collection(LATEST_COLLECTION).doc(key).get();
+    const previousStatus = existing.exists ? existing.data().status : null;
+    const newStatus = examData.status;
+
+    await firestore.collection(LATEST_COLLECTION).doc(key).set({
+      name: examData.name || '',
+      cpf: examData.cpf || '',
+      city: examData.city || '',
+      operationType: examData.operationType || '',
+      startTime: examData.startTime || null,
+      endTime: examData.endTime || null,
+      duration: examData.duration || 0,
+      score: examData.score || 0,
+      correctAnswers: examData.correctAnswers || 0,
+      wrongAnswers: examData.wrongAnswers || 0,
+      percentage: examData.percentage || 0,
+      status: examData.status || '',
+      signature: examData.signature || null,
+      answers: examData.answers || [],
+      createdAt: now,
+      attempts: FIELD_VALUE.increment(1),
+    }, { merge: true });
+
+    const ref = firestore.doc(AGGREGATION_DOC);
+    const peopleUpdates = {};
+
+    if (!existing.exists) {
+      peopleUpdates.totalPeople = FIELD_VALUE.increment(1);
+    }
+
+    if (previousStatus !== newStatus) {
+      if (previousStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(-1);
+      else if (previousStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(-1);
+
+      if (newStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(1);
+      else if (newStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(1);
+    }
+
+    if (Object.keys(peopleUpdates).length > 0) {
+      await ref.set(peopleUpdates, { merge: true });
+    }
+
+    return key;
   },
 
   async updateAggregation(examData) {
@@ -30,28 +74,28 @@ export const examService = {
 
   async getAggregation() {
     const snap = await firestore.doc(AGGREGATION_DOC).get();
-    if (snap.exists && snap.data().total > 0) {
+    if (snap.exists && snap.data().total > 0 && snap.data().approvedPeople !== undefined) {
       const data = snap.data();
       return {
         ...data,
-        approvalRate: data.total > 0 ? Math.round((data.approved / data.total) * 100) : 0,
+        approvalRate: data.totalPeople > 0 ? Math.round((data.approvedPeople / data.totalPeople) * 100) : 0,
       };
     }
 
-    const all = await firestore.collection(COLLECTION).get();
+    const all = await firestore.collection(LATEST_COLLECTION).orderBy('createdAt', 'desc').limit(500).get();
     if (all.empty) {
-      return { total: 0, approved: 0, reproved: 0, approvalRate: 0, monthlyCounts: {}, typeCounts: {} };
+      return { total: 0, totalPeople: 0, approvedPeople: 0, reprovedPeople: 0, approvalRate: 0, monthlyCounts: {}, typeCounts: {} };
     }
 
     const monthlyCounts = {};
     const typeCounts = {};
-    let approved = 0;
-    let reproved = 0;
+    let approvedPeople = 0;
+    let reprovedPeople = 0;
 
     all.docs.forEach((doc) => {
       const d = doc.data();
-      if (d.status === 'approved') approved++;
-      else if (d.status === 'reproved') reproved++;
+      if (d.status === 'approved') approvedPeople++;
+      else if (d.status === 'reproved') reprovedPeople++;
 
       const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
       monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
@@ -60,29 +104,24 @@ export const examService = {
       typeCounts[type] = (typeCounts[type] || 0) + 1;
     });
 
-    const total = all.size;
-    const aggregation = { total, approved, reproved, monthlyCounts, typeCounts };
+    const totalPeople = all.size;
+    const aggregation = { total: totalPeople, totalPeople, approvedPeople, reprovedPeople, monthlyCounts, typeCounts };
 
     await firestore.doc(AGGREGATION_DOC).set(aggregation, { merge: true });
 
     return {
       ...aggregation,
-      approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0,
+      approvalRate: totalPeople > 0 ? Math.round((approvedPeople / totalPeople) * 100) : 0,
     };
   },
 
-  async getRecent(limit = 20) {
-    const snapshot = await firestore
-      .collection(COLLECTION)
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  },
+  async getLatestPage(filters = {}, pageSize = 15, cursor = null) {
+    let query = firestore.collection(LATEST_COLLECTION);
 
-  async getPage(filters = {}, pageSize = 15, cursor = null) {
-    let query = firestore.collection(COLLECTION);
-
+    if (filters.name) {
+      const name = filters.name.toUpperCase();
+      query = query.where('name', '>=', name).where('name', '<', `${name}\uf8ff`);
+    }
     if (filters.status) query = query.where('status', '==', filters.status);
     if (filters.city) query = query.where('city', '==', filters.city);
     if (filters.operationType) query = query.where('operationType', '==', filters.operationType);
@@ -108,27 +147,23 @@ export const examService = {
   },
 
   async getById(id) {
-    const doc = await firestore.collection(COLLECTION).doc(id).get();
+    const doc = await firestore.collection(LATEST_COLLECTION).doc(id).get();
     if (!doc.exists) return null;
     return { id: doc.id, ...doc.data() };
   },
 
   async getLatestByCpf(cpf) {
-    const snapshot = await firestore
-      .collection(COLLECTION)
-      .where('cpf', '==', cpf)
-      .get();
-    if (snapshot.docs.length === 0) return null;
-    const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    docs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    return docs[0];
+    const key = cpfDigits(cpf);
+    if (!key) return null;
+    const doc = await firestore.collection(LATEST_COLLECTION).doc(key).get();
+    if (!doc.exists) return null;
+    return { id: doc.id, ...doc.data() };
   },
 
   async countByCpf(cpf) {
-    const snapshot = await firestore
-      .collection(COLLECTION)
-      .where('cpf', '==', cpf)
-      .get();
-    return snapshot.size;
+    const key = cpfDigits(cpf);
+    if (!key) return 0;
+    const doc = await firestore.collection(LATEST_COLLECTION).doc(key).get();
+    return doc.exists ? 1 : 0;
   },
 };

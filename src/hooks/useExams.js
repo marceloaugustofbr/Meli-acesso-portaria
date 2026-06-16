@@ -1,17 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { examService } from '../services';
 
-export function useExams(filters, cursor) {
-  return useQuery({
-    queryKey: ['exams', filters, cursor],
-    queryFn: () => examService.getPage(filters, 15, cursor),
-    staleTime: 1000 * 60,
-  });
-}
-
 export function useExam(id) {
   return useQuery({
-    queryKey: ['exam', id],
+    queryKey: ['latestExam', id],
     queryFn: () => examService.getById(id),
     enabled: !!id,
   });
@@ -25,10 +17,10 @@ export function useExamStats() {
   });
 }
 
-export function useRecentExams(limit = 20) {
+export function useLatestExams(filters, cursor) {
   return useQuery({
-    queryKey: ['recentExams', limit],
-    queryFn: () => examService.getRecent(limit),
+    queryKey: ['latestExams', filters, cursor],
+    queryFn: () => examService.getLatestPage(filters, 15, cursor),
     staleTime: 1000 * 60,
   });
 }

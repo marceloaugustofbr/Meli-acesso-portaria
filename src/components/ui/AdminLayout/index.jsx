@@ -38,7 +38,6 @@ export default function AdminLayout({ children }) {
         <div className={classNames('navbar-menu', { 'is-active': menuOpen })}>
           <div className="navbar-start">
             <Link className="navbar-item" to={ROUTES.ADMIN_DASHBOARD} onClick={() => setMenuOpen(false)}>Dashboard</Link>
-            <Link className="navbar-item" to={ROUTES.ADMIN_EXAMS} onClick={() => setMenuOpen(false)}>Provas</Link>
           </div>
           <div className="navbar-end">
             <div className="navbar-item">

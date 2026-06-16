@@ -1,12 +1,20 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { useExamStats, useRecentExams } from '../../../hooks';
+import { useExamStats, useLatestExams } from '../../../hooks';
 import AdminLayout from '../../../components/ui/AdminLayout';
 import Loading from '../../../components/ui/Loading';
-import { formatCPF } from '../../../utils/cpf';
+import { formatCPF } from '../../../utils';
 
 const COLORS = ['#D40511', '#FFCC00', '#D9D9D9', '#222222'];
+
+const CITIES = [
+  'Araçatuba', 'Avaré', 'Barretos', 'Bauru', 'Cravinhos',
+  'Franca', 'Jales', 'Piracicaba', 'Presidente Prudente',
+  'Ribeirão Preto', 'São Carlos',
+];
+
+const TYPES = ['TSI', 'Polly'];
 
 function AnimatedCounter({ value, suffix = '' }) {
   const [display, setDisplay] = useState(0);
@@ -33,19 +41,49 @@ function AnimatedCounter({ value, suffix = '' }) {
   return <span>{display}{suffix}</span>;
 }
 
-function statColor(label) {
-  if (label === 'approved' || label === 'Aprovados') return '#28A745';
-  if (label === 'reproved' || label === 'Reprovados') return '#D32F2F';
-  return '#222';
-}
-
 export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useExamStats();
-  const { data: exams, isLoading: examsLoading } = useRecentExams(20);
 
   const [cityFilter, setCityFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [filters, setFilters] = useState({});
+  const [cursorStack, setCursorStack] = useState([]);
+  const [cursor, setCursor] = useState(null);
+
+  const { data, isLoading: examsLoading } = useLatestExams(filters, cursor);
+
+  const applyFilters = useCallback(() => {
+    const next = {};
+    const trimmed = nameInput.trim().toUpperCase();
+    if (trimmed) next.name = trimmed;
+    if (cityFilter) next.city = cityFilter;
+    if (typeFilter) next.operationType = typeFilter;
+    if (statusFilter) next.status = statusFilter;
+    setFilters(next);
+    setCursorStack([]);
+    setCursor(null);
+  }, [cityFilter, typeFilter, statusFilter, nameInput]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') applyFilters();
+  };
+
+  const nextPage = useCallback(() => {
+    if (data?.hasMore && data?.lastCursor) {
+      setCursorStack((prev) => [...prev, cursor]);
+      setCursor(data.lastCursor);
+    }
+  }, [data, cursor]);
+
+  const prevPage = useCallback(() => {
+    if (cursorStack.length > 0) {
+      const prev = cursorStack[cursorStack.length - 1];
+      setCursorStack((prevStack) => prevStack.slice(0, -1));
+      setCursor(prev);
+    }
+  }, [cursorStack]);
 
   const monthlyData = useMemo(() => {
     if (!stats?.monthlyCounts) return [];
@@ -59,39 +97,22 @@ export default function AdminDashboard() {
     return Object.entries(stats.typeCounts).map(([name, value]) => ({ name, value }));
   }, [stats]);
 
-  const filteredExams = useMemo(() => {
-    if (!exams) return [];
-    return exams.filter((e) => {
-      if (cityFilter && e.city !== cityFilter) return false;
-      if (typeFilter && e.operationType !== typeFilter) return false;
-      if (statusFilter && e.status !== statusFilter) return false;
-      return true;
-    });
-  }, [exams, cityFilter, typeFilter, statusFilter]);
-
-  const cities = useMemo(() => {
-    if (!exams) return [];
-    return [...new Set(exams.map((e) => e.city))];
-  }, [exams]);
-
-  const types = useMemo(() => {
-    if (!exams) return [];
-    return [...new Set(exams.map((e) => e.operationType))];
-  }, [exams]);
-
   const pieData = useMemo(() => [
-    { name: 'Aprovados', value: stats?.approved || 0 },
-    { name: 'Reprovados', value: stats?.reproved || 0 },
+    { name: 'Aprovados', value: stats?.approvedPeople ?? 0 },
+    { name: 'Reprovados', value: stats?.reprovedPeople ?? 0 },
   ], [stats]);
 
   const kpis = useMemo(() => [
-    { label: 'Total Provas', value: stats?.total || 0, color: '#222' },
-    { label: 'Aprovados', value: stats?.approved || 0, color: '#28A745' },
-    { label: 'Reprovados', value: stats?.reproved || 0, color: '#D32F2F' },
+    { label: 'Total Pessoas', value: stats?.totalPeople ?? stats?.total ?? 0, color: '#222' },
+    { label: 'Aprovados', value: stats?.approvedPeople ?? 0, color: '#28A745' },
+    { label: 'Reprovados', value: stats?.reprovedPeople ?? 0, color: '#D32F2F' },
     { label: 'Taxa Aprovação', value: stats?.approvalRate || 0, suffix: '%', color: '#D40511' },
   ], [stats]);
 
-  if (statsLoading || examsLoading) return <AdminLayout><Loading fullPage /></AdminLayout>;
+  const pageData = data?.data || [];
+  const total = stats?.totalPeople ?? stats?.total ?? 0;
+
+  if (statsLoading && !stats) return <AdminLayout><Loading fullPage /></AdminLayout>;
 
   return (
     <AdminLayout>
@@ -122,7 +143,7 @@ export default function AdminDashboard() {
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                   <Tooltip />
                   <Bar dataKey="count" fill="#D40511" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -134,7 +155,7 @@ export default function AdminDashboard() {
               <h3 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '1rem', color: '#444' }}>Aprovados x Reprovados</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
                     <Cell fill="#28A745" />
                     <Cell fill="#D32F2F" />
                   </Pie>
@@ -164,17 +185,32 @@ export default function AdminDashboard() {
 
         <div className="kpi-card" style={{ padding: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: '#444' }}>Últimas Provas</h3>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+            <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: '#444' }}>
+              Histórico de Provas
+              <span className="has-text-grey is-size-7 ml-2">({total} total)</span>
+            </h3>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                type="text"
+                className="input-dhl"
+                placeholder="Buscar nome..."
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                style={{ width: 180, padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
+              />
+              <button className="button is-small" onClick={applyFilters} style={{ background: '#D40511', color: '#fff', border: 'none' }}>
+                <i className="fas fa-search" />
+              </button>
+              <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={cityFilter} onChange={(e) => { setCityFilter(e.target.value); }}>
                 <option value="">Todas cidades</option>
-                {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+                {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); }}>
                 <option value="">Todos tipos</option>
-                {types.map((t) => <option key={t} value={t}>{t}</option>)}
+                {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
-              <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); }}>
                 <option value="">Todos status</option>
                 <option value="approved">Aprovado</option>
                 <option value="reproved">Reprovado</option>
@@ -190,19 +226,21 @@ export default function AdminDashboard() {
                   <th>Cidade</th>
                   <th>Tipo</th>
                   <th>Nota</th>
+                  <th>Tentativas</th>
                   <th>Status</th>
                   <th>Data</th>
                   <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredExams.slice(0, 20).map((exam) => (
+                {!examsLoading && pageData.map((exam) => (
                   <tr key={exam.id} className="hover-card" style={{ cursor: 'default' }}>
                     <td data-label="Nome">{exam.name}</td>
                     <td data-label="CPF">{formatCPF(exam.cpf || '')}</td>
                     <td data-label="Cidade">{exam.city}</td>
                     <td data-label="Tipo">{exam.operationType}</td>
                     <td data-label="Nota">{exam.score}</td>
+                    <td data-label="Tentativas">{exam.attempts || 1}ª</td>
                     <td data-label="Status">
                       <span style={{
                         display: 'inline-block',
@@ -224,12 +262,32 @@ export default function AdminDashboard() {
                     </td>
                   </tr>
                 ))}
-                {filteredExams.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>Nenhuma prova encontrada</td></tr>
+                {!examsLoading && pageData.length === 0 && (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>Nenhuma prova encontrada</td></tr>
+                )}
+                {examsLoading && (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem' }}><Loading /></td></tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          <nav className="pagination is-centered" role="navigation" aria-label="pagination" style={{ marginTop: '1rem' }}>
+            <button
+              className="button is-small"
+              disabled={cursorStack.length === 0}
+              onClick={prevPage}
+            >
+              Anterior
+            </button>
+            <button
+              className="button is-small"
+              disabled={!data?.hasMore}
+              onClick={nextPage}
+            >
+              Próximo
+            </button>
+          </nav>
         </div>
       </div>
     </AdminLayout>
