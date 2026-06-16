@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.isAdmin == true;
+    }
+
+    match /users/{userId} {
+      function isOwner() {
+        return request.auth.uid == userId;
+      }
+
+      allow read: if isAuthenticated() && (isAdmin() || isOwner());
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isOwner() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'role', 'claims']))
+      );
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    match /security_exams/{examId} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isAdmin();
+    }
+  }
+}

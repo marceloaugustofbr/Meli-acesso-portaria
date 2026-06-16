@@ -1,0 +1,1 @@
+export { useExamStore } from './examStore';

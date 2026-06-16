@@ -1,0 +1,28 @@
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.isAdmin == true;
+    }
+
+    match /signatures/{examId} {
+      allow write: if isAuthenticated()
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/png');
+      allow read: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{fileName} {
+      allow write: if isAuthenticated()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|jpg|gif|webp)');
+      allow read: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+  }
+}

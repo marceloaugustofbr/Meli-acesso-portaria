@@ -1,0 +1,404 @@
+/* ============================================
+   SAFE ACCESS — Design System
+   Inspirado na identidade visual DHL
+   ============================================ */
+
+/* ---- CSS Custom Properties ---- */
+:root {
+  --dhl-yellow: #FFCC00;
+  --dhl-yellow-dark: #F3B700;
+  --dhl-yellow-gradient: linear-gradient(160deg, #FFCC00, #F6D33D);
+  --dhl-red: #D40511;
+  --dhl-red-dark: #9a030c;
+  --gray-light: #F5F5F5;
+  --gray-medium: #D9D9D9;
+  --gray-dark: #888;
+  --text-primary: #222222;
+  --color-success: #28A745;
+  --color-error: #D32F2F;
+  --card-bg: rgba(255,255,255,0.92);
+  --card-border: 1px solid rgba(255,255,255,0.5);
+  --card-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --card-radius: 16px;
+  --transition-fast: 200ms ease;
+  --transition-normal: 300ms ease;
+  --transition-slow: 500ms ease;
+  --font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ---- Global ---- */
+body {
+  font-family: var(--font-family);
+  color: var(--text-primary);
+}
+
+/* ---- Background Pattern + Animation ---- */
+.bg-corporate {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.bg-corporate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,204,0,0.08) 40px,
+      rgba(255,204,0,0.08) 41px
+    ),
+    var(--dhl-yellow-gradient);
+  z-index: 0;
+}
+
+.bg-corporate::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(ellipse at 30% 50%, rgba(212,5,17,0.04) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 50%, rgba(212,5,17,0.03) 0%, transparent 50%);
+  animation: bg-drift 20s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bg-corporate::after {
+    animation: bg-drift 20s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-corporate::after {
+    animation: none;
+  }
+}
+
+@keyframes bg-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(2%, 1%) rotate(0.5deg); }
+  66% { transform: translate(-1%, -1%) rotate(-0.5deg); }
+}
+
+/* ---- Glass Card ---- */
+.glass-card {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 2;
+}
+
+/* ---- Fade In ---- */
+.fade-in {
+  opacity: 0;
+  animation: fadeIn var(--transition-slow) forwards;
+}
+
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fadeInUp var(--transition-slow) forwards;
+}
+
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Stagger Children ---- */
+.stagger > * {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: fadeInUp var(--transition-slow) forwards;
+}
+.stagger > *:nth-child(1) { animation-delay: 100ms; }
+.stagger > *:nth-child(2) { animation-delay: 200ms; }
+.stagger > *:nth-child(3) { animation-delay: 300ms; }
+.stagger > *:nth-child(4) { animation-delay: 400ms; }
+.stagger > *:nth-child(5) { animation-delay: 500ms; }
+.stagger > *:nth-child(6) { animation-delay: 600ms; }
+.stagger > *:nth-child(7) { animation-delay: 700ms; }
+.stagger > *:nth-child(8) { animation-delay: 800ms; }
+
+/* ---- Animated Counter Base ---- */
+.counter-value {
+  display: inline-block;
+  transition: all var(--transition-normal);
+}
+
+/* ---- Hover Card ---- */
+.hover-card {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.hover-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+/* ---- Button Primary DHL ---- */
+.btn-dhl {
+  background: var(--dhl-red);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-dhl:hover {
+  background: var(--dhl-red-dark);
+  transform: translateY(-1px);
+}
+.btn-dhl:active {
+  transform: translateY(0);
+}
+.btn-dhl:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---- Input DHL ---- */
+.input-dhl {
+  border: 1.5px solid var(--gray-medium);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  width: 100%;
+  background: #fff;
+}
+.input-dhl:focus {
+  outline: none;
+  border-color: var(--dhl-red);
+  box-shadow: 0 0 0 3px rgba(212,5,17,0.1);
+}
+.input-dhl.is-danger {
+  border-color: var(--color-error);
+}
+
+/* ---- Select DHL ---- */
+.select-dhl {
+  border: 1.5px solid var(--gray-medium);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  background: #fff;
+  width: 100%;
+  transition: border-color var(--transition-fast);
+}
+.select-dhl:focus {
+  outline: none;
+  border-color: var(--dhl-red);
+  box-shadow: 0 0 0 3px rgba(212,5,17,0.1);
+}
+
+/* ---- Option Card (for Identification) ---- */
+.option-card {
+  border: 2px solid var(--gray-medium);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  background: #fff;
+}
+.option-card:hover {
+  border-color: var(--dhl-red);
+  background: rgba(255,204,0,0.08);
+}
+.option-card.selected {
+  border-color: var(--dhl-red);
+  background: rgba(255,204,0,0.15);
+  color: var(--dhl-red);
+}
+
+/* ---- Progress Bar DHL ---- */
+.progress-dhl {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gray-medium);
+  overflow: hidden;
+  position: relative;
+}
+.progress-dhl::-webkit-progress-bar {
+  background: var(--gray-medium);
+  border-radius: 3px;
+}
+.progress-dhl::-webkit-progress-value {
+  background: var(--dhl-red);
+  border-radius: 3px;
+  transition: width 400ms ease;
+}
+.progress-dhl::-moz-progress-bar {
+  background: var(--dhl-red);
+  border-radius: 3px;
+  transition: width 400ms ease;
+}
+
+/* ---- Skeleton Loading ---- */
+.skeleton {
+  background: linear-gradient(90deg, var(--gray-light) 25%, #ececec 50%, var(--gray-light) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ---- KPI Card ---- */
+.kpi-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.kpi-label {
+  font-size: 0.8rem;
+  color: var(--gray-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.25rem;
+}
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* ---- Loading Spinner ---- */
+.spinner-dhl {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--gray-medium);
+  border-top-color: var(--dhl-red);
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Ripple Effect (discreto) ---- */
+.ripple-btn {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.15);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.ripple-btn:active::after {
+  opacity: 1;
+}
+
+/* ---- Login Page Specific ---- */
+.login-container {
+  display: flex;
+  min-height: 100vh;
+}
+.login-brand {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,255,255,0.06) 40px,
+      rgba(255,255,255,0.06) 41px
+    ),
+    linear-gradient(160deg, #D40511 0%, #9a030c 100%);
+}
+.login-brand-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: #fff;
+}
+.login-brand-lines {
+  position: absolute;
+  inset: -50%;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 60px,
+      rgba(255,255,255,0.03) 60px,
+      rgba(255,255,255,0.03) 61px
+    );
+  animation: login-slide 30s linear infinite;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-brand-lines { animation: none; }
+}
+@keyframes login-slide {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(60px); }
+}
+.login-form-wrapper {
+  width: 440px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: #fff;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .login-container {
+    flex-direction: column;
+  }
+  .login-brand {
+    padding: 2rem 1.5rem;
+    min-height: 30vh;
+  }
+  .login-form-wrapper {
+    width: 100%;
+    padding: 1.5rem;
+  }
+  .glass-card {
+    border-radius: 12px;
+  }
+  .kpi-card {
+    padding: 1rem;
+  }
+  .kpi-value {
+    font-size: 1.5rem;
+  }
+  .option-card {
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+  }
+}
