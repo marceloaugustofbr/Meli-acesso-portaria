@@ -15,7 +15,27 @@ export const examService = {
 
     const existing = await firestore.collection(LATEST_COLLECTION).doc(key).get();
     const previousStatus = existing.exists ? existing.data().status : null;
-    const newStatus = examData.status;
+
+    const questionsSnap = await firestore.collection('questions').get();
+    const questionsMap = {};
+    questionsSnap.docs.forEach((doc) => {
+      questionsMap[doc.id] = doc.data();
+    });
+
+    const validatedAnswers = (examData.answers || []).map((a) => {
+      const q = questionsMap[a.questionId];
+      const isCorrect = q ? a.selectedAnswer === q.correctAnswer : false;
+      return {
+        ...a,
+        isCorrect,
+      };
+    });
+
+    const correctCount = validatedAnswers.filter((a) => a.isCorrect).length;
+    const wrongCount = validatedAnswers.length - correctCount;
+    const total = validatedAnswers.length;
+    const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    const computedStatus = percentage >= 70 ? 'approved' : 'reproved';
 
     await firestore.collection(LATEST_COLLECTION).doc(key).set({
       name: examData.name || '',
@@ -25,13 +45,13 @@ export const examService = {
       startTime: examData.startTime || null,
       endTime: examData.endTime || null,
       duration: examData.duration || 0,
-      score: examData.score || 0,
-      correctAnswers: examData.correctAnswers || 0,
-      wrongAnswers: examData.wrongAnswers || 0,
-      percentage: examData.percentage || 0,
-      status: examData.status || '',
+      score: correctCount,
+      correctAnswers: correctCount,
+      wrongAnswers: wrongCount,
+      percentage,
+      status: computedStatus,
       signature: examData.signature || null,
-      answers: examData.answers || [],
+      answers: validatedAnswers,
       createdAt: now,
       attempts: FIELD_VALUE.increment(1),
     }, { merge: true });
@@ -43,12 +63,12 @@ export const examService = {
       peopleUpdates.totalPeople = FIELD_VALUE.increment(1);
     }
 
-    if (previousStatus !== newStatus) {
+    if (previousStatus !== computedStatus) {
       if (previousStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(-1);
       else if (previousStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(-1);
 
-      if (newStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(1);
-      else if (newStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(1);
+      if (computedStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(1);
+      else if (computedStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(1);
     }
 
     if (Object.keys(peopleUpdates).length > 0) {
@@ -165,5 +185,19 @@ export const examService = {
     if (!key) return 0;
     const doc = await firestore.collection(LATEST_COLLECTION).doc(key).get();
     return doc.exists ? 1 : 0;
+  },
+
+  async blockUser(cpf, blockData) {
+    const key = cpfDigits(cpf);
+    if (!key) return null;
+    const now = new Date().toISOString();
+    await firestore.collection(LATEST_COLLECTION).doc(key).set({
+      status: 'blocked',
+      blockedAt: now,
+      blockedBy: blockData.blockedBy || '',
+      blockReason: blockData.blockReason || '',
+      blockSignature: blockData.blockSignature || null,
+    }, { merge: true });
+    return key;
   },
 };

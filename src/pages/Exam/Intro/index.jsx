@@ -39,8 +39,8 @@ export default function ExamIntro() {
           <p style={{ fontWeight: 700, fontSize: '0.85rem', margin: '0 0 0.75rem', color: '#444' }}>Etapas do Treinamento:</p>
           <ul style={{ fontSize: '0.85rem', color: '#555', lineHeight: 1.8, margin: 0, paddingLeft: '1.25rem' }}>
             <li>Assista ao vídeo completo sobre segurança</li>
-            <li>Responda <strong>10 perguntas</strong> sobre o conteúdo</li>
-            <li>Aprovação com no mínimo <strong style={{ color: '#D40511' }}>70%</strong> de acertos (7/10)</li>
+            <li>Responda <strong>23 perguntas</strong> sobre o conteúdo</li>
+            <li>Aprovação com no mínimo <strong style={{ color: '#D40511' }}>70%</strong> de acertos (16/23)</li>
             <li>Leia e concorde com os <strong>Termos de Segurança</strong></li>
             <li>Assine digitalmente ao final</li>
           </ul>

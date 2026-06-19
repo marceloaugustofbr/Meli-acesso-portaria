@@ -1,7 +1,10 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { useQueryClient } from '@tanstack/react-query';
+import SignatureCanvas from 'react-signature-canvas';
 import { useExamStats, useLatestExams } from '../../../hooks';
+import { examService } from '../../../services';
 import AdminLayout from '../../../components/ui/AdminLayout';
 import Loading from '../../../components/ui/Loading';
 import { formatCPF } from '../../../utils';
@@ -52,6 +55,13 @@ export default function AdminDashboard() {
   const [cursorStack, setCursorStack] = useState([]);
   const [cursor, setCursor] = useState(null);
 
+  const [dropdownPos, setDropdownPos] = useState(null);
+  const [blockModal, setBlockModal] = useState(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [savingBlock, setSavingBlock] = useState(false);
+  const sigRef = useRef(null);
+
+  const queryClient = useQueryClient();
   const { data, isLoading: examsLoading } = useLatestExams(filters, cursor);
 
   const applyFilters = useCallback(() => {
@@ -85,6 +95,58 @@ export default function AdminDashboard() {
     }
   }, [cursorStack]);
 
+  useEffect(() => {
+    if (!dropdownPos) return undefined;
+    const handler = () => setDropdownPos(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [dropdownPos]);
+
+  const openDropdown = (exam, e) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 4,
+      left: rect.right - 180,
+      exam,
+    });
+  };
+
+  const openBlockModal = (exam) => {
+    setBlockModal(exam);
+    setBlockReason('');
+    setDropdownPos(null);
+  };
+
+  const closeBlockModal = () => {
+    setBlockModal(null);
+    setBlockReason('');
+    setSavingBlock(false);
+  };
+
+  const handleBlockConfirm = async () => {
+    if (!blockModal || !blockReason.trim()) return;
+    setSavingBlock(true);
+    try {
+      let signatureUrl = null;
+      if (sigRef.current && !sigRef.current.isEmpty()) {
+        const trimmed = sigRef.current.getTrimmedCanvas();
+        signatureUrl = trimmed.toDataURL('image/png');
+      }
+      await examService.blockUser(blockModal.cpf, {
+        blockedBy: 'Admin',
+        blockReason: blockReason.trim(),
+        blockSignature: signatureUrl,
+      });
+      queryClient.invalidateQueries({ queryKey: ['latestExams'] });
+      closeBlockModal();
+    } catch (err) {
+      console.error('Erro ao bloquear:', err);
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
   const monthlyData = useMemo(() => {
     if (!stats?.monthlyCounts) return [];
     return Object.entries(stats.monthlyCounts)
@@ -101,6 +163,11 @@ export default function AdminDashboard() {
     { name: 'Aprovados', value: stats?.approvedPeople ?? 0 },
     { name: 'Reprovados', value: stats?.reprovedPeople ?? 0 },
   ], [stats]);
+
+  const statusConfig = {
+    approved: { bg: '#E8F5E9', color: '#28A745', label: 'Aprovado' },
+    blocked: { bg: '#FFF3E0', color: '#E65100', label: 'Bloqueado' },
+  };
 
   const kpis = useMemo(() => [
     { label: 'Total Pessoas', value: stats?.totalPeople ?? stats?.total ?? 0, color: '#222' },
@@ -214,6 +281,7 @@ export default function AdminDashboard() {
                 <option value="">Todos status</option>
                 <option value="approved">Aprovado</option>
                 <option value="reproved">Reprovado</option>
+                <option value="blocked">Bloqueado</option>
               </select>
             </div>
           </div>
@@ -242,23 +310,28 @@ export default function AdminDashboard() {
                     <td data-label="Nota">{exam.score}</td>
                     <td data-label="Tentativas">{exam.attempts || 1}ª</td>
                     <td data-label="Status">
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 10px',
-                        borderRadius: 12,
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        background: exam.status === 'approved' ? '#E8F5E9' : '#FFEBEE',
-                        color: exam.status === 'approved' ? '#28A745' : '#D32F2F',
-                      }}>
-                        {exam.status === 'approved' ? 'Aprovado' : 'Reprovado'}
-                      </span>
+                      {(() => {
+                        const cfg = statusConfig[exam.status] || { bg: '#FFEBEE', color: '#D32F2F', label: 'Reprovado' };
+                        return (
+                          <span style={{
+                            display: 'inline-block', padding: '2px 10px', borderRadius: 12,
+                            fontSize: '0.75rem', fontWeight: 600,
+                            background: cfg.bg, color: cfg.color,
+                          }}>
+                            {cfg.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td data-label="Data">{exam.createdAt ? new Date(exam.createdAt).toLocaleDateString('pt-BR') : '-'}</td>
                     <td data-label="Ações">
-                      <Link to={`/admin/exam/${exam.id}`} className="btn-dhl" style={{ padding: '0.3rem 1rem', fontSize: '0.78rem' }}>
-                        Visualizar
-                      </Link>
+                      <button
+                        className="button is-small is-light"
+                        onClick={(e) => openDropdown(exam, e)}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
+                      >
+                        &#8942;
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -290,6 +363,95 @@ export default function AdminDashboard() {
           </nav>
         </div>
       </div>
+      {dropdownPos && (
+        <div style={{
+          position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 100,
+          background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          minWidth: 180, padding: '0.25rem 0',
+        }}>
+          <Link to={`/admin/exam/${dropdownPos.exam.id}`} style={{
+            display: 'block', padding: '0.5rem 1rem', fontSize: '0.85rem',
+            color: '#222', textDecoration: 'none',
+          }}>
+            <i className="fas fa-eye" style={{ width: 18 }} /> Visualizar
+          </Link>
+          <button
+            onClick={() => openBlockModal(dropdownPos.exam)}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              padding: '0.5rem 1rem', fontSize: '0.85rem',
+              color: '#D32F2F', border: 'none', background: 'transparent', cursor: 'pointer',
+            }}
+          >
+            <i className="fas fa-ban" style={{ width: 18 }} /> Bloquear colaborador
+          </button>
+        </div>
+      )}
+      {blockModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.5)', padding: 16,
+        }} onClick={closeBlockModal}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: 32,
+            maxWidth: 480, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+          }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#D32F2F', margin: '0 0 4px' }}>
+              Bloquear Colaborador
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 16px' }}>
+              {blockModal.name} — {formatCPF(blockModal.cpf || '')}
+            </p>
+
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: '#444' }}>
+              Motivo do bloqueio
+            </label>
+            <textarea
+              className="textarea"
+              rows={4}
+              placeholder="Descreva o motivo do bloqueio..."
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              style={{ marginBottom: 16, resize: 'vertical' }}
+            />
+
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: '#444' }}>
+              Assinatura do administrador
+            </label>
+            <div style={{
+              border: '2px dashed #ccc', borderRadius: 8, overflow: 'hidden', marginBottom: 20,
+            }}>
+              <SignatureCanvas
+                ref={sigRef}
+                penColor="#000"
+                canvasProps={{
+                  width: 600, height: 150,
+                  style: { width: '100%', height: 150, cursor: 'crosshair' },
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                className="button"
+                onClick={closeBlockModal}
+                disabled={savingBlock}
+              >
+                Cancelar
+              </button>
+              <button
+                className="button"
+                disabled={!blockReason.trim() || savingBlock}
+                onClick={handleBlockConfirm}
+                style={{ background: '#D32F2F', color: '#fff', border: 'none' }}
+              >
+                {savingBlock ? 'Salvando...' : 'Confirmar Bloqueio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

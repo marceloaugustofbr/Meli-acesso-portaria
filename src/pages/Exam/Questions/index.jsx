@@ -25,13 +25,9 @@ export default function ExamQuestions() {
 
   const saveCurrentAnswer = useCallback(() => {
     if (!currentQuestion || !selected[currentIndex]) return;
-    const isCorrect = selected[currentIndex] === currentQuestion.correctAnswer;
     updateAnswer({
       questionId: currentQuestion.id,
-      question: currentQuestion.question,
       selectedAnswer: selected[currentIndex],
-      correctAnswer: currentQuestion.correctAnswer,
-      isCorrect,
     });
   }, [currentQuestion, selected, currentIndex, updateAnswer]);
 
@@ -46,8 +42,17 @@ export default function ExamQuestions() {
         setTransition('fade-in');
       }, 200);
     } else {
-      setStep('terms');
-      history.push(ROUTES.EXAM_TERMS);
+      const correctCount = questions.filter((q, i) => selected[i] === q.correctAnswer).length;
+      const percentage = Math.round((correctCount / questions.length) * 100);
+      const passed = percentage >= 70;
+
+      if (passed) {
+        setStep('terms');
+        history.push(ROUTES.EXAM_TERMS);
+      } else {
+        setStep('result');
+        history.push(ROUTES.EXAM_RESULT);
+      }
     }
   }, [selected, currentIndex, saveCurrentAnswer, questions, history, setStep]);
 

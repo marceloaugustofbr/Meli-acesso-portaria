@@ -3,9 +3,15 @@ import { questions } from '../data/questions';
 
 const COLLECTION = 'questions';
 
-async function seedQuestions() {
+async function seedQuestions(force = false) {
   const existing = await firestore.collection(COLLECTION).get();
-  if (existing.docs.length > 0) return;
+  if (existing.docs.length > 0 && !force) return;
+
+  if (force) {
+    const batch = firestore.batch();
+    existing.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
 
   const batch = firestore.batch();
   questions.forEach((q) => {
@@ -22,6 +28,11 @@ export const questionsService = {
     const snapshot = await firestore.collection(COLLECTION).get();
     if (snapshot.docs.length === 0) {
       await seedQuestions();
+      const retry = await firestore.collection(COLLECTION).get();
+      return retry.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    }
+    if (snapshot.docs.length !== questions.length) {
+      await seedQuestions(true);
       const retry = await firestore.collection(COLLECTION).get();
       return retry.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     }

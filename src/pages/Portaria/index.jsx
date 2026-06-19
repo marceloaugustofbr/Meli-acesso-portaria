@@ -17,7 +17,7 @@ export default function Portaria() {
 
   const handlePinSubmit = (e) => {
     e.preventDefault();
-    if (accessPin === (process.env.REACT_APP_PORTARIA_PIN || '1234')) {
+    if (process.env.REACT_APP_PORTARIA_PIN && accessPin === process.env.REACT_APP_PORTARIA_PIN) {
       sessionStorage.setItem('portaria_auth', 'true');
       setAuthorized(true);
       setPinError('');
@@ -102,7 +102,13 @@ export default function Portaria() {
       const snapshot = await examService.getLatestByCpf(cpf);
       if (snapshot) {
         setExamData(snapshot);
-        setResult(snapshot.status === 'approved' ? 'apto' : 'reprovado');
+        if (snapshot.status === 'blocked') {
+          setResult('bloqueado');
+        } else if (snapshot.status === 'approved') {
+          setResult('apto');
+        } else {
+          setResult('reprovado');
+        }
       } else {
         setResult('nao_encontrado');
       }
@@ -302,6 +308,52 @@ export default function Portaria() {
                 <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>Empresa diarista</p>
                 <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: '2px 0 0' }}>{examData.operationType}</p>
               </div>
+            </div>
+            <button
+              className="button is-medium is-fullwidth"
+              onClick={handleNewCheck}
+              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
+            >
+              Nova Consulta
+            </button>
+          </div>
+        )}
+
+        {result === 'bloqueado' && examData && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: '#FFF3E0', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}>
+              <i className="fas fa-ban fa-3x" style={{ color: '#E65100' }} />
+            </div>
+            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#E65100', margin: 0 }}>
+              BLOQUEADO
+            </p>
+            <p style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a2e', margin: '8px 0 4px' }}>
+              {examData.name}
+            </p>
+            <p style={{ fontSize: '0.85rem', color: '#888', margin: 0 }}>
+              {formatCPF(examData.cpf || cpf)}
+            </p>
+            <div style={{
+              background: '#FFF8E1', borderRadius: 12, padding: 16, marginTop: 16,
+              textAlign: 'left',
+            }}>
+              <p style={{ fontSize: '0.8rem', color: '#E65100', fontWeight: 600, margin: '0 0 4px' }}>
+                <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                Motivo do bloqueio
+              </p>
+              <p style={{ fontSize: '0.85rem', color: '#333', margin: 0, lineHeight: 1.5 }}>
+                {examData.blockReason || 'Não informado'}
+              </p>
+              {examData.blockedAt && (
+                <p style={{ fontSize: '0.75rem', color: '#999', marginTop: 8 }}>
+                  Bloqueado em {new Date(examData.blockedAt).toLocaleString('pt-BR')}
+                  {examData.blockedBy ? ` por ${examData.blockedBy}` : ''}
+                </p>
+              )}
             </div>
             <button
               className="button is-medium is-fullwidth"

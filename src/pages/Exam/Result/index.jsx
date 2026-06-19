@@ -3,10 +3,12 @@ import { useHistory } from 'react-router-dom';
 import classNames from 'classnames';
 import { shallow } from 'zustand/shallow';
 import { useExamStore } from '../../../store';
-import { examService } from '../../../services';
+import { examService, storageService } from '../../../services';
 import { formatCPF } from '../../../utils/cpf';
+import { useQuestions } from '../../../hooks';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
+import Loading from '../../../components/ui/Loading';
 
 function AnimatedNumber({ value, duration = 800 }) {
   const [display, setDisplay] = useState(0);
@@ -40,14 +42,22 @@ export default function ExamResult() {
     }),
     shallow
   );
+  const { data: questions, isLoading: questionsLoading } = useQuestions();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [attemptCount, setAttemptCount] = useState(0);
 
   const endTime = useMemo(() => new Date().toISOString(), []);
 
-  const correctCount = answers.filter((a) => a.isCorrect).length;
-  const wrongCount = answers.filter((a) => !a.isCorrect).length;
+  const correctCount = useMemo(() => {
+    if (!questions || !answers.length) return 0;
+    return answers.filter((a) => {
+      const question = questions.find((qq) => qq.id === a.questionId);
+      return question && a.selectedAnswer === question.correctAnswer;
+    }).length;
+  }, [answers, questions]);
+
+  const wrongCount = answers.length - correctCount;
   const total = answers.length;
   const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
   const status = percentage >= 70 ? 'approved' : 'reproved';
@@ -64,10 +74,34 @@ export default function ExamResult() {
     }
   }, [identification]);
 
+  if (questionsLoading) return <Loading fullPage text="Calculando resultado..." />;
+
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
     try {
+      let signatureUrl = null;
+      if (signature) {
+        try {
+          signatureUrl = await storageService.uploadSignature(signature, identification?.cpf);
+        } catch (err) {
+          console.warn('Erro ao enviar assinatura pro Cloudinary, salvando inline:', err);
+        }
+      }
+
+      const enrichedAnswers = questions
+        ? answers.map((a) => {
+            const q = questions.find((qq) => qq.id === a.questionId);
+            if (!q) return { ...a, question: '', correctAnswer: '', isCorrect: false };
+            return {
+              ...a,
+              question: q.question,
+              correctAnswer: q.correctAnswer,
+              isCorrect: a.selectedAnswer === q.correctAnswer,
+            };
+          })
+        : answers;
+
       const examData = {
         name: identification?.name,
         cpf: identification?.cpf,
@@ -81,8 +115,8 @@ export default function ExamResult() {
         wrongAnswers: wrongCount,
         percentage,
         status,
-        signature,
-        answers,
+        signature: signatureUrl || signature,
+        answers: enrichedAnswers,
       };
       await examService.create(examData);
       await examService.updateAggregation(examData);

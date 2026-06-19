@@ -19,7 +19,7 @@ export default function AdminLayout({ children }) {
       <nav className="navbar is-dark" role="navigation" aria-label="main navigation">
         <div className="navbar-brand">
           <Link className="navbar-item has-text-weight-bold" to={ROUTES.ADMIN_DASHBOARD}>
-            Admin - Segurança
+            Safe Acess - DHL
           </Link>
           <a
             role="button"

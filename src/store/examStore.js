@@ -38,7 +38,7 @@ export const useExamStore = create(
     }),
     {
       name: 'exam-storage',
-      partialize: ({ signature: _signature, identification: _id, answers: _answers, cpf: _cpf, ...rest }) => rest,
+      partialize: ({ signature: _signature, identification: _id, answers: _answers, cpf: _cpf, step: _step, videoFinished: _v, startTime: _st, ...rest }) => rest,
     }
   )
 );
