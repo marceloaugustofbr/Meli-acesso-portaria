@@ -1,6 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
-import classNames from 'classnames';
 import { shallow } from 'zustand/shallow';
 import { useExamStore } from '../../../store';
 import { examService, storageService } from '../../../services';
@@ -46,6 +45,8 @@ export default function ExamResult() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [attemptCount, setAttemptCount] = useState(0);
+  const [autoSaved, setAutoSaved] = useState(false);
+  const savingRef = useRef(false);
 
   const endTime = useMemo(() => new Date().toISOString(), []);
 
@@ -74,60 +75,68 @@ export default function ExamResult() {
     }
   }, [identification]);
 
-  if (questionsLoading) return <Loading fullPage text="Calculando resultado..." />;
-
-  const handleSave = async () => {
+  useEffect(() => {
+    if (questionsLoading || savingRef.current || autoSaved) return;
+    savingRef.current = true;
     setSaving(true);
-    setSaveError(null);
-    try {
-      let signatureUrl = null;
-      if (signature) {
-        try {
-          signatureUrl = await storageService.uploadSignature(signature, identification?.cpf);
-        } catch (err) {
-          console.warn('Erro ao enviar assinatura pro Cloudinary, salvando inline:', err);
+
+    (async () => {
+      try {
+        let signatureUrl = null;
+        if (signature) {
+          try {
+            signatureUrl = await storageService.uploadSignature(signature, identification?.cpf);
+          } catch (err) {
+            console.warn('Erro ao enviar assinatura pro Cloudinary, salvando inline:', err);
+          }
         }
+
+        const enrichedAnswers = questions
+          ? answers.map((a) => {
+              const q = questions.find((qq) => qq.id === a.questionId);
+              if (!q) return { ...a, question: '', correctAnswer: '', isCorrect: false };
+              return {
+                ...a,
+                question: q.question,
+                correctAnswer: q.correctAnswer,
+                isCorrect: a.selectedAnswer === q.correctAnswer,
+              };
+            })
+          : answers;
+
+        const examData = {
+          name: identification?.name,
+          cpf: identification?.cpf,
+          city: identification?.city,
+          operationType: identification?.operationType,
+          startTime,
+          endTime,
+          duration,
+          score: correctCount,
+          correctAnswers: correctCount,
+          wrongAnswers: wrongCount,
+          percentage,
+          status,
+          signature: signatureUrl || signature,
+          answers: enrichedAnswers,
+        };
+        await examService.create(examData);
+        await examService.updateAggregation(examData);
+        setAutoSaved(true);
+        setTimeout(() => {
+          reset();
+          history.push(ROUTES.ROOT);
+        }, 2000);
+      } catch (err) {
+        console.error('Erro ao salvar exame:', err);
+        setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
+        setSaving(false);
+        savingRef.current = false;
       }
+    })();
+  }, [questionsLoading]);
 
-      const enrichedAnswers = questions
-        ? answers.map((a) => {
-            const q = questions.find((qq) => qq.id === a.questionId);
-            if (!q) return { ...a, question: '', correctAnswer: '', isCorrect: false };
-            return {
-              ...a,
-              question: q.question,
-              correctAnswer: q.correctAnswer,
-              isCorrect: a.selectedAnswer === q.correctAnswer,
-            };
-          })
-        : answers;
-
-      const examData = {
-        name: identification?.name,
-        cpf: identification?.cpf,
-        city: identification?.city,
-        operationType: identification?.operationType,
-        startTime,
-        endTime,
-        duration,
-        score: correctCount,
-        correctAnswers: correctCount,
-        wrongAnswers: wrongCount,
-        percentage,
-        status,
-        signature: signatureUrl || signature,
-        answers: enrichedAnswers,
-      };
-      await examService.create(examData);
-      await examService.updateAggregation(examData);
-      reset();
-      history.push(ROUTES.ROOT);
-    } catch (err) {
-      console.error('Erro ao salvar exame:', err);
-      setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
-      setSaving(false);
-    }
-  };
+  if (questionsLoading) return <Loading fullPage text="Calculando resultado..." />;
 
   return (
     <ExamLayout>
@@ -143,7 +152,7 @@ export default function ExamResult() {
           margin: '0 auto 1rem',
         }}>
           <i
-            className={classNames('fas', status === 'approved' ? 'fa-check-circle' : 'fa-times-circle')}
+            className={`fas ${status === 'approved' ? 'fa-check-circle' : 'fa-times-circle'}`}
             style={{ fontSize: '2rem', color: status === 'approved' ? '#28A745' : '#D32F2F' }}
           />
         </div>
@@ -219,14 +228,19 @@ export default function ExamResult() {
 
         {saveError && <p style={{ fontSize: '0.8rem', color: '#D32F2F', marginBottom: '0.75rem' }}>{saveError}</p>}
 
-        <button
-          className={classNames('btn-dhl ripple-btn', { 'is-loading': saving })}
-          onClick={handleSave}
-          style={{ padding: '0.85rem 2.5rem', fontSize: '1rem', marginTop: '0.5rem' }}
-        >
-          <i className="fas fa-save" style={{ fontSize: '0.85rem' }} />
-          Finalizar
-        </button>
+        {saving && !autoSaved && (
+          <p style={{ fontSize: '0.85rem', color: '#888', marginTop: '0.5rem' }}>
+            <i className="fas fa-spinner fa-pulse" style={{ marginRight: 8 }} />
+            Salvando resultado...
+          </p>
+        )}
+
+        {autoSaved && (
+          <p style={{ fontSize: '0.85rem', color: '#28A745', marginTop: '0.5rem' }}>
+            <i className="fas fa-check-circle" style={{ marginRight: 8 }} />
+            Resultado salvo! Redirecionando...
+          </p>
+        )}
       </div>
     </ExamLayout>
   );
