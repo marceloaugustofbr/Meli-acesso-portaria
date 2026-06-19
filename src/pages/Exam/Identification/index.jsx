@@ -93,6 +93,11 @@ export default function ExamIdentification() {
       setCpfBlocked('CPF já possui aprovação');
       return;
     }
+    if (last && last.status === 'blocked') {
+      const company = data.operationType || last.operationType || 'TSI';
+      setCpfBlocked(`Você está bloqueado para acessar as operações. Entre em contato com a liderança local da ${company} para entender o motivo.`);
+      return;
+    }
     const normalized = { ...data, name: normalizeName(data.name) };
     setIdentification(normalized);
     setStartTime(new Date().toISOString());

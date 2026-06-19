@@ -47,6 +47,8 @@ export default function ExamCheck() {
         setExamData(snapshot);
         if (snapshot.status === 'approved') {
           setResult('liberado');
+        } else if (snapshot.status === 'blocked') {
+          setResult('bloqueado');
         } else {
           setResult('reprovado');
         }
@@ -288,6 +290,82 @@ export default function ExamCheck() {
                   <span className="icon is-small"><i className="fas fa-redo" /></span>
                   <span>REFAZER PROVA</span>
                 </button>
+                <button
+                  className="button is-medium"
+                  onClick={handleFinish}
+                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#fff', color: '#D40511', border: '2px solid #D40511' }}
+                >
+                  <span className="icon is-small"><i className="fas fa-sign-out-alt" /></span>
+                  <span>SAIR</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {result === 'bloqueado' && examData && (
+            <div className="mt-2">
+              <div
+                className="box"
+                style={{
+                  border: '2px solid #E65100',
+                  borderRadius: 16,
+                  padding: 0,
+                  overflow: 'hidden',
+                  boxShadow: '0 8px 24px rgba(230,81,0,0.15)',
+                }}
+              >
+                <div
+                  className="has-text-white has-text-centered"
+                  style={{ background: 'linear-gradient(135deg, #E65100 0%, #bf360c 100%)', padding: '32px 24px 24px' }}
+                >
+                  <div
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 12px',
+                    }}
+                  >
+                    <i className="fas fa-ban fa-3x" />
+                  </div>
+                  <p className="title is-5 has-text-white mb-1" style={{ fontWeight: 600 }}>{examData.name}</p>
+                  <p className="has-text-white" style={{ opacity: 0.8, fontSize: '0.85rem' }}>
+                    {formatCPF(examData.cpf || cpf)}
+                  </p>
+                </div>
+
+                <div style={{ padding: '20px 24px' }}>
+                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        background: '#E65100',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        borderRadius: 20,
+                        padding: '5px 28px',
+                        marginBottom: 12,
+                      }}
+                    >
+                      BLOQUEADO
+                    </span>
+                  </div>
+
+                  <div style={{ textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 16 }}>
+                    <div style={{ background: '#FFF3E0', borderRadius: 10, padding: '12px 16px', textAlign: 'left', fontSize: '0.8rem', color: '#E65100', lineHeight: 1.5 }}>
+                      <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                      Você está bloqueado para acessar as operações. Entre em contato com a liderança local da <strong>{examData.operationType || 'TSI'}</strong> para entender o motivo.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
                 <button
                   className="button is-medium"
                   onClick={handleFinish}

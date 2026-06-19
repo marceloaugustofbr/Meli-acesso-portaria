@@ -13,7 +13,7 @@ const ROUTES = {
   ADMIN: '/admin',
   ADMIN_DASHBOARD: '/admin/dashboard',
   ADMIN_EXAMS: '/admin/exams',
-  ADMIN_EXAM_DETAIL: '/admin/exam/:id',
+  ADMIN_EXAM_DETAIL: '/admin/exam/detail/:uid',
   ADMIN_USERS: '/admin/users',
   ADMIN_SETTINGS: '/admin/settings',
   PORTARIA: '/portaria',

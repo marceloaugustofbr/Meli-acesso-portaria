@@ -6,14 +6,19 @@ import Loading from '../../../components/ui/Loading';
 import { formatCPF } from '../../../utils/cpf';
 
 export default function AdminExamDetail() {
-  const { id } = useParams();
-  const { data: exam, isLoading } = useExam(id);
+  const { uid } = useParams();
+  const { data: exam, isLoading } = useExam(uid);
 
   if (isLoading) return <AdminLayout><Loading fullPage /></AdminLayout>;
   if (!exam) return <AdminLayout><p>Prova não encontrada</p></AdminLayout>;
 
   const minutes = Math.floor((exam.duration || 0) / 60);
   const seconds = (exam.duration || 0) % 60;
+  let statusClass;
+  let statusLabel;
+  if (exam.status === 'approved') { statusClass = 'is-success'; statusLabel = 'APROVADO'; }
+  else if (exam.status === 'blocked') { statusClass = 'is-warning'; statusLabel = 'BLOQUEADO'; }
+  else { statusClass = 'is-danger'; statusLabel = 'REPROVADO'; }
 
   return (
     <AdminLayout>
@@ -39,10 +44,20 @@ export default function AdminExamDetail() {
             <p><strong>Tempo:</strong> {minutes}min {seconds}s</p>
             <p>
               <strong>Status:</strong>{' '}
-              <span className={`tag ${exam.status === 'approved' ? 'is-success' : 'is-danger'}`}>
-                {exam.status === 'approved' ? 'APROVADO' : 'REPROVADO'}
-              </span>
+              <span className={`tag ${statusClass}`}>{statusLabel}</span>
             </p>
+            {exam.status === 'blocked' && (
+              <div className="mt-4" style={{ background: '#FFF3E0', borderRadius: 8, padding: '12px 16px' }}>
+                <p style={{ color: '#E65100', fontWeight: 600, marginBottom: 4 }}>
+                  <i className="fas fa-ban" style={{ marginRight: 6 }} />Dados do Bloqueio
+                </p>
+                <p><strong>Motivo:</strong> {exam.blockReason || 'Não informado'}</p>
+                {exam.blockedAt && (
+                  <p><strong>Data:</strong> {new Date(exam.blockedAt).toLocaleString('pt-BR')}</p>
+                )}
+                {exam.blockedBy && <p><strong>Bloqueado por:</strong> {exam.blockedBy}</p>}
+              </div>
+            )}
           </div>
         </div>
       </div>

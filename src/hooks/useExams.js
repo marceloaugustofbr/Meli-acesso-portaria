@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { examService } from '../services';
 
-export function useExam(id) {
+export function useExam(uid) {
   return useQuery({
-    queryKey: ['latestExam', id],
-    queryFn: () => examService.getById(id),
-    enabled: !!id,
+    queryKey: ['latestExam', uid],
+    queryFn: () => examService.getByUid(uid),
+    enabled: !!uid,
   });
 }
 

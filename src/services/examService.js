@@ -16,6 +16,16 @@ export const examService = {
     const existing = await firestore.collection(LATEST_COLLECTION).doc(key).get();
     const previousStatus = existing.exists ? existing.data().status : null;
 
+    if (previousStatus === 'blocked') {
+      throw new Error('Colaborador bloqueado não pode realizar a prova.');
+    }
+
+    let uid = existing.exists ? existing.data().uid : null;
+    if (!uid) {
+      uid = crypto.randomUUID();
+      await firestore.collection('exam_uids').doc(uid).set({ cpf: examData.cpf });
+    }
+
     const questionsSnap = await firestore.collection('questions').get();
     const questionsMap = {};
     questionsSnap.docs.forEach((doc) => {
@@ -38,6 +48,7 @@ export const examService = {
     const computedStatus = percentage >= 70 ? 'approved' : 'reproved';
 
     await firestore.collection(LATEST_COLLECTION).doc(key).set({
+      uid,
       name: examData.name || '',
       cpf: examData.cpf || '',
       city: examData.city || '',
@@ -170,6 +181,13 @@ export const examService = {
     const doc = await firestore.collection(LATEST_COLLECTION).doc(id).get();
     if (!doc.exists) return null;
     return { id: doc.id, ...doc.data() };
+  },
+
+  async getByUid(uid) {
+    if (!uid) return null;
+    const lookup = await firestore.collection('exam_uids').doc(uid).get();
+    if (!lookup.exists) return null;
+    return this.getById(lookup.data().cpf);
   },
 
   async getLatestByCpf(cpf) {

@@ -124,7 +124,7 @@ export default function ExamResult() {
       history.push(ROUTES.ROOT);
     } catch (err) {
       console.error('Erro ao salvar exame:', err);
-      setSaveError('Erro ao salvar. Tente novamente.');
+      setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
       setSaving(false);
     }
   };

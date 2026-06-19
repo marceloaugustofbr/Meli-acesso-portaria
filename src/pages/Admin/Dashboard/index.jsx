@@ -369,7 +369,7 @@ export default function AdminDashboard() {
           background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
           minWidth: 180, padding: '0.25rem 0',
         }}>
-          <Link to={`/admin/exam/${dropdownPos.exam.id}`} style={{
+          <Link to={`/admin/exam/detail/${dropdownPos.exam.uid}`} style={{
             display: 'block', padding: '0.5rem 1rem', fontSize: '0.85rem',
             color: '#222', textDecoration: 'none',
           }}>
