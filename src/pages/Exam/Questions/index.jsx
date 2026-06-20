@@ -65,6 +65,27 @@ export default function ExamQuestions() {
     }, 200);
   }, [saveCurrentAnswer]);
 
+  const fillCorrect = useCallback(() => {
+    if (!questions) return;
+    const filled = {};
+    questions.forEach((q, i) => {
+      filled[i] = q.correctAnswer;
+      updateAnswer({ questionId: q.id, selectedAnswer: q.correctAnswer });
+    });
+    setSelected(filled);
+  }, [questions, updateAnswer]);
+
+  const fillWrong = useCallback(() => {
+    if (!questions) return;
+    const filled = {};
+    questions.forEach((q, i) => {
+      const wrong = q.options.find((o) => o !== q.correctAnswer);
+      filled[i] = wrong || q.options[0];
+      updateAnswer({ questionId: q.id, selectedAnswer: filled[i] });
+    });
+    setSelected(filled);
+  }, [questions, updateAnswer]);
+
   if (isLoading) return <Loading fullPage />;
   if (!questions?.length) return <Loading fullPage text="Carregando perguntas..." />;
 
@@ -89,6 +110,23 @@ export default function ExamQuestions() {
           <div className="exam-progress-bar" style={{ background: '#E0E0E0', height: 5, borderRadius: 3 }}>
             <div className="exam-progress-fill" style={{ width: `${progress}%`, height: '100%', borderRadius: 3, background: '#D40511', transition: 'width 300ms ease' }} />
           </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button
+            className="button is-small"
+            onClick={fillCorrect}
+            style={{ background: '#28A745', color: '#fff', border: 'none', fontSize: '0.75rem' }}
+          >
+            ✓ Todas Corretas
+          </button>
+          <button
+            className="button is-small"
+            onClick={fillWrong}
+            style={{ background: '#D32F2F', color: '#fff', border: 'none', fontSize: '0.75rem' }}
+          >
+            ✗ Todas Erradas
+          </button>
         </div>
 
         <div style={{
