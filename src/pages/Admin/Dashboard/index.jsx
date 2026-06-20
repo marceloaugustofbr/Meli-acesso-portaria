@@ -14,7 +14,7 @@ const COLORS = ['#D40511', '#FFCC00', '#D9D9D9', '#222222'];
 const CITIES = [
   'Araçatuba', 'Avaré', 'Barretos', 'Bauru', 'Cravinhos',
   'Franca', 'Jales', 'Piracicaba', 'Presidente Prudente',
-  'Ribeirão Preto', 'São Carlos',
+  'Ribeirão Preto', 'S.J Rio Preto', 'São Carlos',
 ];
 
 const TYPES = ['TSI', 'Polly'];

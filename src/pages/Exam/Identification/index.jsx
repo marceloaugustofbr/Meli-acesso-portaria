@@ -23,6 +23,7 @@ const cities = [
   'Piracicaba',
   'Presidente Prudente',
   'Ribeirão Preto',
+  'S.J Rio Preto',
   'São Carlos',
 ];
 
