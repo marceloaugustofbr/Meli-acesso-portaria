@@ -51,7 +51,8 @@
     "Request": true,
     "fetch": true,
     "reducerTester": true,
-    "renderWithProviders": true
+    "renderWithProviders": true,
+    "crypto": true
   },
   "parser": "babel-eslint",
   "settings": {

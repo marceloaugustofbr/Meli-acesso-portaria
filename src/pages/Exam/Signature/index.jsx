@@ -27,7 +27,7 @@ export default function ExamSignature() {
     const resized = document.createElement('canvas');
     resized.width = Math.round(trimmed.width * scale);
     resized.height = Math.round(trimmed.height * scale);
-    const ctx = resized.getContext('2d');
+    const ctx = resized.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(trimmed, 0, 0, resized.width, resized.height);
 
     const dataUrl = resized.toDataURL('image/png');

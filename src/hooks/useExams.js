@@ -19,7 +19,7 @@ export function useExamStats() {
 
 export function useLatestExams(filters, cursor) {
   return useQuery({
-    queryKey: ['latestExams', filters, cursor],
+    queryKey: ['latestExams', JSON.stringify(filters), cursor],
     queryFn: () => examService.getLatestPage(filters, 15, cursor),
     staleTime: 1000 * 60,
   });

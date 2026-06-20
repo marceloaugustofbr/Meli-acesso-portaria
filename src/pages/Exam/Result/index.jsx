@@ -76,9 +76,11 @@ export default function ExamResult() {
   }, [identification]);
 
   useEffect(() => {
-    if (questionsLoading || savingRef.current || autoSaved) return;
+    if (questionsLoading || savingRef.current || autoSaved) return undefined;
     savingRef.current = true;
     setSaving(true);
+
+    let mounted = true;
 
     (async () => {
       try {
@@ -121,18 +123,18 @@ export default function ExamResult() {
           answers: enrichedAnswers,
         };
         await examService.create(examData);
-        setAutoSaved(true);
-        setTimeout(() => {
-          reset();
-          history.push(ROUTES.ROOT);
-        }, 2000);
+        if (mounted) setAutoSaved(true);
       } catch (err) {
         console.error('Erro ao salvar exame:', err);
-        setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
-        setSaving(false);
-        savingRef.current = false;
+        if (mounted) {
+          setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
+          setSaving(false);
+          savingRef.current = false;
+        }
       }
     })();
+
+    return () => { mounted = false; };
   }, [questionsLoading]);
 
   if (questionsLoading) return <Loading fullPage text="Calculando resultado..." />;
@@ -235,10 +237,13 @@ export default function ExamResult() {
         )}
 
         {autoSaved && (
-          <p style={{ fontSize: '0.85rem', color: '#28A745', marginTop: '0.5rem' }}>
+          <button onClick={() => { reset(); history.push(ROUTES.ROOT); }}
+            style={{ marginTop: '1rem', padding: '0.75rem 2rem', background: '#28A745',
+                     color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem',
+                     fontWeight: 600, cursor: 'pointer' }}>
             <i className="fas fa-check-circle" style={{ marginRight: 8 }} />
-            Resultado salvo! Redirecionando...
-          </p>
+            Fechar
+          </button>
         )}
       </div>
     </ExamLayout>

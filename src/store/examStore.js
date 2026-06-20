@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { persist } from 'zustand/middleware';
 
 const initialState = {
@@ -12,7 +12,7 @@ const initialState = {
   cpf: '',
 };
 
-export const useExamStore = create(
+export const useExamStore = createWithEqualityFn(
   persist(
     (set) => ({
       ...initialState,
@@ -20,7 +20,6 @@ export const useExamStore = create(
       setVideoFinished: () => set({ videoFinished: true }),
       setIdentification: (data) => set({ identification: data }),
       setStartTime: (time) => set({ startTime: time }),
-      addAnswer: (answer) => set((state) => ({ answers: [...state.answers, answer] })),
       updateAnswer: (answer) =>
         set((state) => {
           const exists = state.answers.findIndex((a) => a.questionId === answer.questionId);
@@ -38,7 +37,8 @@ export const useExamStore = create(
     }),
     {
       name: 'exam-storage',
-      partialize: ({ signature: _signature, identification: _id, answers: _answers, cpf: _cpf, step: _step, videoFinished: _v, startTime: _st, ...rest }) => rest,
+      partialize: ({ signature: _signature, ...rest }) => rest,
     }
-  )
+  ),
+  undefined
 );

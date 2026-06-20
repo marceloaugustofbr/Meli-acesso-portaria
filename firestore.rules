@@ -6,48 +6,33 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isAuthenticated() && request.auth.token.isAdmin == true;
-    }
-
     match /users/{userId} {
       function isOwner() {
         return request.auth.uid == userId;
       }
 
-      allow read: if isAuthenticated() && (isAdmin() || isOwner());
-      allow create: if isAuthenticated() && isAdmin();
-      allow update: if isAuthenticated() && (
-        isAdmin() ||
-        (isOwner() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'role', 'claims']))
-      );
-      allow delete: if isAuthenticated() && isAdmin();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isOwner();
+      allow delete: if isAuthenticated() && isOwner();
     }
 
     match /latest_exams/{cpf} {
-      allow get: if request.auth == null || isAuthenticated();
-      allow list: if isAuthenticated();
-      allow create, update: if
-        request.resource.data.keys().hasAll(['name', 'cpf', 'score', 'status', 'answers']) &&
-        request.resource.data.score is number &&
-        request.resource.data.score >= 0 &&
-        request.resource.data.score <= 23 &&
-        request.resource.data.status in ['approved', 'reproved', 'blocked'] &&
-        request.resource.data.answers is list &&
-        request.resource.data.answers.size() >= 20 &&
-        request.resource.data.answers.size() <= 23;
-      allow delete: if isAuthenticated() && isAdmin();
+      allow read: if true;
+      allow write: if true;
     }
 
     match /aggregations/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if request.auth == null || isAuthenticated();
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /exam_uids/{uid} {
+      allow read, write: if true;
     }
 
     match /questions/{questionId} {
-      allow read: if request.auth == null || isAuthenticated();
-      allow create, update: if isAuthenticated() && isAdmin();
-      allow delete: if isAuthenticated() && isAdmin();
+      allow read, write: if true;
     }
   }
 }

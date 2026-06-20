@@ -18,7 +18,7 @@ if (!firebase.apps.length) {
 }
 
 const firestoreInstance = firebase.firestore();
-firestoreInstance.settings({ experimentalForceLongPolling: true });
+firestoreInstance.settings({ experimentalForceLongPolling: true, merge: true });
 
 export const auth = firebase.auth();
 export const firestore = firestoreInstance;

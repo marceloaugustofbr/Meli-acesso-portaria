@@ -7,6 +7,21 @@ const AGGREGATION_DOC = 'aggregations/examStats';
 
 const cpfDigits = (cpf) => (cpf || '').replace(/\D/g, '');
 
+const sanitizeText = (str) => (str || '').replace(/<[^>]*>/g, '').replace(/[<>"']/g, '').trim();
+
+let questionsMapCache = null;
+
+async function getQuestionsMap() {
+  if (questionsMapCache) return questionsMapCache;
+  const snap = await firestore.collection('questions').get();
+  const map = {};
+  snap.docs.forEach((doc) => {
+    map[doc.id] = doc.data();
+  });
+  questionsMapCache = map;
+  return map;
+}
+
 export const examService = {
   async create(examData) {
     const now = new Date().toISOString();
@@ -26,11 +41,7 @@ export const examService = {
       await firestore.collection('exam_uids').doc(uid).set({ cpf: examData.cpf });
     }
 
-    const questionsSnap = await firestore.collection('questions').get();
-    const questionsMap = {};
-    questionsSnap.docs.forEach((doc) => {
-      questionsMap[doc.id] = doc.data();
-    });
+    const questionsMap = await getQuestionsMap();
 
     const validatedAnswers = (examData.answers || []).map((a) => {
       const q = questionsMap[a.questionId];
@@ -49,10 +60,10 @@ export const examService = {
 
     await firestore.collection(LATEST_COLLECTION).doc(key).set({
       uid,
-      name: examData.name || '',
+      name: sanitizeText(examData.name),
       cpf: examData.cpf || '',
-      city: examData.city || '',
-      operationType: examData.operationType || '',
+      city: sanitizeText(examData.city),
+      operationType: sanitizeText(examData.operationType),
       startTime: examData.startTime || null,
       endTime: examData.endTime || null,
       duration: examData.duration || 0,
@@ -68,11 +79,11 @@ export const examService = {
     }, { merge: true });
 
     const ref = firestore.doc(AGGREGATION_DOC);
-    const peopleUpdates = {};
-
-    if (!existing.exists) {
-      peopleUpdates.totalPeople = FIELD_VALUE.increment(1);
-    }
+    const peopleUpdates = {
+      totalPeople: FIELD_VALUE.increment(existing.exists ? 0 : 1),
+      approvedPeople: FIELD_VALUE.increment(0),
+      reprovedPeople: FIELD_VALUE.increment(0),
+    };
 
     if (previousStatus !== computedStatus) {
       if (previousStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(-1);
@@ -96,52 +107,33 @@ export const examService = {
     return key;
   },
 
-  async updateAggregation(examData) {
-    const ref = firestore.doc(AGGREGATION_DOC);
-    const month = new Date().toISOString().substring(0, 7);
-    const { operationType = 'unknown', status } = examData;
-
-    await ref.set({
-      total: FIELD_VALUE.increment(1),
-      approved: status === 'approved' ? FIELD_VALUE.increment(1) : FIELD_VALUE.increment(0),
-      reproved: status === 'reproved' ? FIELD_VALUE.increment(1) : FIELD_VALUE.increment(0),
-      [`monthlyCounts.${month}`]: FIELD_VALUE.increment(1),
-      [`typeCounts.${operationType}`]: FIELD_VALUE.increment(1),
-    }, { merge: true });
-  },
-
   async getAggregation() {
     const snap = await firestore.doc(AGGREGATION_DOC).get();
 
-    if (snap.exists) {
-      const data = snap.data();
-      const hasCore = data.total > 0 && data.approvedPeople !== undefined;
-      const hasMonthly = data.monthlyCounts && Object.keys(data.monthlyCounts).length > 0;
-      const hasTypes = data.typeCounts && Object.keys(data.typeCounts).length > 0;
+    const kpis = snap.exists ? snap.data() : {};
 
-      if (hasCore && hasMonthly && hasTypes) {
-        return {
-          ...data,
-          approvalRate: data.totalPeople > 0 ? Math.round((data.approvedPeople / data.totalPeople) * 100) : 0,
-        };
-      }
-    }
+    const allDocs = [];
+    let lastDoc = null;
+    const PAGE_SIZE = 300;
 
-    const all = await firestore.collection(LATEST_COLLECTION).orderBy('createdAt', 'desc').limit(500).get();
-    if (all.empty) {
-      return { total: 0, totalPeople: 0, approvedPeople: 0, reprovedPeople: 0, approvalRate: 0, monthlyCounts: {}, typeCounts: {} };
-    }
+    const fetchPage = async () => {
+      let query = firestore.collection(LATEST_COLLECTION).orderBy('createdAt', 'desc').limit(PAGE_SIZE);
+      if (lastDoc) query = query.startAfter(lastDoc);
+      const snapshot = await query.get();
+      if (snapshot.empty) return;
+      snapshot.docs.forEach((d) => allDocs.push(d));
+      if (snapshot.docs.length < PAGE_SIZE) return;
+      lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      await fetchPage();
+    };
+
+    await fetchPage();
 
     const monthlyCounts = {};
     const typeCounts = {};
-    let approvedPeople = 0;
-    let reprovedPeople = 0;
 
-    all.docs.forEach((doc) => {
+    allDocs.forEach((doc) => {
       const d = doc.data();
-      if (d.status === 'approved') approvedPeople++;
-      else if (d.status === 'reproved') reprovedPeople++;
-
       const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
       monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
 
@@ -149,14 +141,22 @@ export const examService = {
       typeCounts[type] = (typeCounts[type] || 0) + 1;
     });
 
-    const totalPeople = all.size;
-    const aggregation = { total: totalPeople, totalPeople, approvedPeople, reprovedPeople, monthlyCounts, typeCounts };
+    const aggregation = {
+      total: kpis.total ?? allDocs.length,
+      totalPeople: kpis.totalPeople ?? new Set(allDocs.map((d) => d.id)).size,
+      approvedPeople: kpis.approvedPeople ?? 0,
+      reprovedPeople: kpis.reprovedPeople ?? 0,
+      monthlyCounts,
+      typeCounts,
+    };
 
     await firestore.doc(AGGREGATION_DOC).set(aggregation, { merge: true });
 
     return {
       ...aggregation,
-      approvalRate: totalPeople > 0 ? Math.round((approvedPeople / totalPeople) * 100) : 0,
+      approvalRate: aggregation.totalPeople > 0
+        ? Math.round((aggregation.approvedPeople / aggregation.totalPeople) * 100)
+        : 0,
     };
   },
 
@@ -201,7 +201,7 @@ export const examService = {
     if (!uid) return null;
     const lookup = await firestore.collection('exam_uids').doc(uid).get();
     if (!lookup.exists) return null;
-    return this.getById(lookup.data().cpf);
+    return this.getById(cpfDigits(lookup.data().cpf));
   },
 
   async getLatestByCpf(cpf) {

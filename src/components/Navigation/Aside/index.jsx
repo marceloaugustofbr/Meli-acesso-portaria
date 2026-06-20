@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useSelector, shallowEqual } from 'react-redux';
 import classNames from 'classnames';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
@@ -46,13 +45,6 @@ SubMenu.propTypes = {
 };
 
 const Aside = ({ handleMobileToggle }) => {
-  const { isAdmin } = useSelector(
-    (state) => ({
-      isAdmin: state.auth.userData.isAdmin,
-    }),
-    shallowEqual
-  );
-
   const usersMessage = useFormatMessage('Aside.users');
 
   return (
@@ -80,20 +72,18 @@ const Aside = ({ handleMobileToggle }) => {
               </span>
             </NavLink>
           </li>
-          {isAdmin && (
-            <li>
-              <NavLink
-                to={paths.USERS}
-                className="has-icon"
-                onClick={handleMobileToggle}
-              >
-                <span className="icon">
-                  <i className="mdi mdi-account-supervisor" />
-                </span>
-                <span className="menu-item-label">{usersMessage}</span>
-              </NavLink>
-            </li>
-          )}
+          <li>
+            <NavLink
+              to={paths.USERS}
+              className="has-icon"
+              onClick={handleMobileToggle}
+            >
+              <span className="icon">
+                <i className="mdi mdi-account-supervisor" />
+              </span>
+              <span className="menu-item-label">{usersMessage}</span>
+            </NavLink>
+          </li>
           <SubMenu label={useFormatMessage('Aside.dropdownMenu')}>
             <li>
               <NavLink

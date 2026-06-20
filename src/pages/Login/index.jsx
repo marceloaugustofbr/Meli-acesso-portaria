@@ -11,8 +11,8 @@ import ROUTES from '../../constants/routes';
 
 export default function Login() {
   const history = useHistory();
-  const { isAuthenticated } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
 
   const {
     register,
@@ -23,8 +23,14 @@ export default function Login() {
     defaultValues: { email: '', password: '' },
   });
 
+  if (authLoading) return null;
+
+  if (isAuthenticated) {
+    return <Redirect to={ROUTES.ADMIN_DASHBOARD} />;
+  }
+
   const onSubmit = async (data) => {
-    setLoading(true);
+    setSubmitting(true);
     try {
       await authService.login(data.email, data.password);
       history.push(ROUTES.ADMIN_DASHBOARD);
@@ -37,11 +43,9 @@ export default function Login() {
       };
       toastr.error('Erro', messages[err.code] || 'Erro ao fazer login');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
-
-  if (isAuthenticated) return <Redirect to={ROUTES.ADMIN_DASHBOARD} />;
 
   return (
     <div className="login-container">
@@ -90,10 +94,10 @@ export default function Login() {
             </div>
             <button
               type="submit"
-              className={classNames('btn-dhl ripple-btn', { 'is-loading': loading })}
+              className={classNames('btn-dhl ripple-btn', { 'is-loading': submitting })}
               style={{ width: '100%', justifyContent: 'center', padding: '0.85rem 1.5rem', fontSize: '1rem' }}
             >
-              {loading ? (
+              {submitting ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span className="spinner-dhl" style={{ width: 20, height: 20, borderWidth: 2 }} />
                   Entrando...
