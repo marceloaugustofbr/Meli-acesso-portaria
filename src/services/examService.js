@@ -82,9 +82,16 @@ export const examService = {
       else if (computedStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(1);
     }
 
-    if (Object.keys(peopleUpdates).length > 0) {
-      await ref.set(peopleUpdates, { merge: true });
-    }
+    const month = new Date().toISOString().substring(0, 7);
+
+    await ref.set({
+      ...peopleUpdates,
+      total: FIELD_VALUE.increment(1),
+      approved: computedStatus === 'approved' ? FIELD_VALUE.increment(1) : FIELD_VALUE.increment(0),
+      reproved: computedStatus === 'reproved' ? FIELD_VALUE.increment(1) : FIELD_VALUE.increment(0),
+      [`monthlyCounts.${month}`]: FIELD_VALUE.increment(1),
+      [`typeCounts.${examData.operationType || 'unknown'}`]: FIELD_VALUE.increment(1),
+    }, { merge: true });
 
     return key;
   },
@@ -105,12 +112,19 @@ export const examService = {
 
   async getAggregation() {
     const snap = await firestore.doc(AGGREGATION_DOC).get();
-    if (snap.exists && snap.data().total > 0 && snap.data().approvedPeople !== undefined) {
+
+    if (snap.exists) {
       const data = snap.data();
-      return {
-        ...data,
-        approvalRate: data.totalPeople > 0 ? Math.round((data.approvedPeople / data.totalPeople) * 100) : 0,
-      };
+      const hasCore = data.total > 0 && data.approvedPeople !== undefined;
+      const hasMonthly = data.monthlyCounts && Object.keys(data.monthlyCounts).length > 0;
+      const hasTypes = data.typeCounts && Object.keys(data.typeCounts).length > 0;
+
+      if (hasCore && hasMonthly && hasTypes) {
+        return {
+          ...data,
+          approvalRate: data.totalPeople > 0 ? Math.round((data.approvedPeople / data.totalPeople) * 100) : 0,
+        };
+      }
     }
 
     const all = await firestore.collection(LATEST_COLLECTION).orderBy('createdAt', 'desc').limit(500).get();

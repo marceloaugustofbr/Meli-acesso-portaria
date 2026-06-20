@@ -121,7 +121,6 @@ export default function ExamResult() {
           answers: enrichedAnswers,
         };
         await examService.create(examData);
-        await examService.updateAggregation(examData);
         setAutoSaved(true);
         setTimeout(() => {
           reset();
