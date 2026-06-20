@@ -27,7 +27,7 @@ service cloud.firestore {
     match /latest_exams/{cpf} {
       allow get: if request.auth == null || isAuthenticated();
       allow list: if isAuthenticated();
-      allow create: if
+      allow create, update: if
         request.resource.data.keys().hasAll(['name', 'cpf', 'score', 'status', 'answers']) &&
         request.resource.data.score is number &&
         request.resource.data.score >= 0 &&
@@ -36,13 +36,12 @@ service cloud.firestore {
         request.resource.data.answers is list &&
         request.resource.data.answers.size() >= 20 &&
         request.resource.data.answers.size() <= 23;
-      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && isAdmin();
     }
 
     match /aggregations/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow write: if request.auth == null || isAuthenticated();
     }
 
     match /questions/{questionId} {
