@@ -18,7 +18,7 @@ export default https.onCall(async (data, context) => {
   snapshot.docs.forEach((doc) => {
     const docData = doc.data();
     if (!docData.uid) {
-      const uid = crypto.randomUUID();
+      const uid = db.collection('_dummy').doc().id;
       batch.set(db.collection('exam_uids').doc(uid), { cpf: doc.id });
       batch.update(db.collection('latest_exams').doc(doc.id), { uid });
       migrated++;
