@@ -176,6 +176,21 @@ export default function AdminDashboard() {
     { label: 'Taxa Aprovação', value: stats?.approvalRate || 0, suffix: '%', color: '#D40511' },
   ], [stats]);
 
+  const [recalculating, setRecalculating] = useState(false);
+
+  const handleRecalculate = async () => {
+    setRecalculating(true);
+    try {
+      await examService.recalculateAggregation();
+      queryClient.invalidateQueries(['examAggregation']);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Erro ao recalcular:', err);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   const pageData = data?.data || [];
   const total = stats?.totalPeople ?? stats?.total ?? 0;
 
@@ -184,9 +199,19 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="fade-in">
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Dashboard</h1>
-          <p style={{ fontSize: '0.85rem', color: '#888', margin: '4px 0 0' }}>Visão geral dos treinamentos</p>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Dashboard</h1>
+            <p style={{ fontSize: '0.85rem', color: '#888', margin: '4px 0 0' }}>Visão geral dos treinamentos</p>
+          </div>
+          <button
+            className={`button is-small is-light ${recalculating ? 'is-loading' : ''}`}
+            onClick={handleRecalculate}
+            disabled={recalculating}
+          >
+            <span className="icon is-small"><i className="fas fa-sync-alt" /></span>
+            <span>Recalcular</span>
+          </button>
         </div>
 
         <div className="columns is-multiline" style={{ marginBottom: '1.5rem' }}>

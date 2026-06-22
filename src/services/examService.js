@@ -1,7 +1,6 @@
 import firebase from 'firebase/app';
 import { firestore } from '../firebase';
 
-const FIELD_VALUE = firebase.firestore.FieldValue;
 const LATEST_COLLECTION = 'latest_exams';
 const AGGREGATION_DOC = 'aggregations/examStats';
 
@@ -78,33 +77,40 @@ export const examService = {
       signatureUserAgent: examData.signatureUserAgent || null,
       answers: validatedAnswers,
       createdAt: now,
-      attempts: FIELD_VALUE.increment(1),
+      attempts: (existing.exists ? (existing.data().attempts || 0) : 0) + 1,
     }, { merge: true });
 
     const ref = firestore.doc(AGGREGATION_DOC);
-    const peopleUpdates = {
-      totalPeople: FIELD_VALUE.increment(existing.exists ? 0 : 1),
-      approvedPeople: FIELD_VALUE.increment(0),
-      reprovedPeople: FIELD_VALUE.increment(0),
-    };
-
-    if (previousStatus !== computedStatus) {
-      if (previousStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(-1);
-      else if (previousStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(-1);
-
-      if (computedStatus === 'approved') peopleUpdates.approvedPeople = FIELD_VALUE.increment(1);
-      else if (computedStatus === 'reproved') peopleUpdates.reprovedPeople = FIELD_VALUE.increment(1);
-    }
+    const snap = await ref.get();
+    const current = snap.exists ? snap.data() : {};
 
     const month = new Date().toISOString().substring(0, 7);
+    const type = examData.operationType || 'unknown';
+
+    const newMonthlyCounts = { ...(current.monthlyCounts || {}) };
+    newMonthlyCounts[month] = (newMonthlyCounts[month] || 0) + 1;
+
+    const newTypeCounts = { ...(current.typeCounts || {}) };
+    newTypeCounts[type] = (newTypeCounts[type] || 0) + 1;
+
+    let approvedDelta = 0;
+    let reprovedDelta = 0;
+
+    if (previousStatus !== computedStatus) {
+      if (previousStatus === 'approved') approvedDelta -= 1;
+      else if (previousStatus === 'reproved') reprovedDelta -= 1;
+
+      if (computedStatus === 'approved') approvedDelta += 1;
+      else if (computedStatus === 'reproved') reprovedDelta += 1;
+    }
 
     await ref.set({
-      ...peopleUpdates,
-      total: FIELD_VALUE.increment(1),
-      approved: computedStatus === 'approved' ? FIELD_VALUE.increment(1) : FIELD_VALUE.increment(0),
-      reproved: computedStatus === 'reproved' ? FIELD_VALUE.increment(1) : FIELD_VALUE.increment(0),
-      [`monthlyCounts.${month}`]: FIELD_VALUE.increment(1),
-      [`typeCounts.${examData.operationType || 'unknown'}`]: FIELD_VALUE.increment(1),
+      totalPeople: (current.totalPeople || 0) + (existing.exists ? 0 : 1),
+      approvedPeople: (current.approvedPeople || 0) + approvedDelta,
+      reprovedPeople: (current.reprovedPeople || 0) + reprovedDelta,
+      total: (current.total || 0) + 1,
+      monthlyCounts: newMonthlyCounts,
+      typeCounts: newTypeCounts,
     }, { merge: true });
 
     return key;
@@ -129,6 +135,42 @@ export const examService = {
         ? Math.round((aggregation.approvedPeople / aggregation.totalPeople) * 100)
         : 0,
     };
+  },
+
+  async recalculateAggregation() {
+    const snapshot = await firestore.collection(LATEST_COLLECTION).get();
+    const allDocs = snapshot.docs;
+
+    const monthlyCounts = {};
+    const typeCounts = {};
+    const cpfSet = new Set();
+    let approvedCount = 0;
+    let reprovedCount = 0;
+
+    allDocs.forEach((doc) => {
+      const d = doc.data();
+      const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
+      monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
+
+      const type = d.operationType || 'unknown';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+
+      cpfSet.add(d.cpf);
+      if (d.status === 'approved') approvedCount += 1;
+      else if (d.status === 'reproved') reprovedCount += 1;
+    });
+
+    const ref = firestore.doc(AGGREGATION_DOC);
+    await ref.set({
+      total: allDocs.length,
+      totalPeople: cpfSet.size,
+      approvedPeople: approvedCount,
+      reprovedPeople: reprovedCount,
+      monthlyCounts,
+      typeCounts,
+    }, { merge: true });
+
+    return { total: allDocs.length, totalPeople: cpfSet.size, monthlyCounts, typeCounts };
   },
 
   async getLatestPage(filters = {}, pageSize = 15, cursor = null) {
