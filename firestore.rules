@@ -6,6 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isValidCpf(cpf) {
+      return cpf is string
+        && cpf.size() == 11
+        && cpf.matches('^[0-9]{11}$');
+    }
+
     match /config/{docId} {
       allow read: if true;
       allow write: if isAuthenticated();
@@ -27,25 +33,31 @@ service cloud.firestore {
     match /latest_exams/{cpf} {
       allow read: if true;
       allow create: if true
+        && isValidCpf(cpf)
         && request.resource.data.keys().hasAll([
           'uid', 'name', 'cpf', 'status', 'score',
           'percentage', 'answers', 'createdAt'
         ])
         && request.resource.data.answers is list
         && request.resource.data.score is number
-        && request.resource.data.percentage is number;
-      allow update: if true;
+        && request.resource.data.percentage is number
+        && request.resource.data.percentage >= 0
+        && request.resource.data.percentage <= 100
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 23;
+      allow update: if true
+        && isValidCpf(cpf);
       allow delete: if false;
     }
 
     match /aggregations/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     match /exam_uids/{uid} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     match /questions/{questionId} {

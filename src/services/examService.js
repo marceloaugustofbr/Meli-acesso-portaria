@@ -34,6 +34,18 @@ export const examService = {
       throw new Error('Colaborador bloqueado não pode realizar a prova.');
     }
 
+    if (existing.exists) {
+      const lastAttempt = existing.data().createdAt;
+      if (lastAttempt) {
+        const elapsed = Date.now() - new Date(lastAttempt).getTime();
+        const cooldown = 5 * 60 * 1000;
+        if (elapsed < cooldown) {
+          const remaining = Math.ceil((cooldown - elapsed) / 60000);
+          throw new Error(`Aguarde ${remaining} minuto(s) para refazer a prova.`);
+        }
+      }
+    }
+
     let uid = existing.exists ? existing.data().uid : null;
     if (!uid) {
       uid = crypto.randomUUID();
