@@ -245,4 +245,21 @@ export const examService = {
     }, { merge: true });
     return key;
   },
+
+  async unblockUser(cpf) {
+    const key = cpfDigits(cpf);
+    if (!key) return null;
+    const existing = await firestore.collection(LATEST_COLLECTION).doc(key).get();
+    if (!existing.exists) return null;
+    const data = existing.data();
+    const percentage = data.percentage || 0;
+    await firestore.collection(LATEST_COLLECTION).doc(key).set({
+      status: percentage >= 70 ? 'approved' : 'reproved',
+      blockedAt: null,
+      blockedBy: null,
+      blockReason: null,
+      blockSignature: null,
+    }, { merge: true });
+    return key;
+  },
 };

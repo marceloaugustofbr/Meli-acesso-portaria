@@ -1,13 +1,14 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useQueryClient } from '@tanstack/react-query';
-import SignatureCanvas from 'react-signature-canvas';
 import { useExamStats, useLatestExams } from '../../../hooks';
 import { examService } from '../../../services';
 import AdminLayout from '../../../components/ui/AdminLayout';
 import Loading from '../../../components/ui/Loading';
 import { formatCPF } from '../../../utils';
+
+const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const COLORS = ['#D40511', '#FFCC00', '#28A745', '#37474F'];
 
@@ -25,11 +26,18 @@ export default function AdminDashboard() {
 
   const [dropdownPos, setDropdownPos] = useState(null);
   const [blockModal, setBlockModal] = useState(null);
+  const [unblockModal, setUnblockModal] = useState(null);
   const [blockReason, setBlockReason] = useState('');
   const [savingBlock, setSavingBlock] = useState(false);
-  const sigRef = useRef(null);
 
   const { data, isLoading: examsLoading } = useLatestExams(appliedFilters, cursor);
+
+  useEffect(() => {
+    if (!dropdownPos) return undefined;
+    const handler = () => setDropdownPos(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [dropdownPos]);
 
   const applyFilters = useCallback(() => {
     const next = {};
@@ -72,8 +80,11 @@ export default function AdminDashboard() {
   const monthlyData = useMemo(() => {
     if (!stats?.monthlyCounts) return [];
     return Object.entries(stats.monthlyCounts)
-      .map(([month, count]) => ({ month, count }))
-      .sort((a, b) => a.month.localeCompare(b.month));
+      .map(([month, count]) => {
+        const monthNum = parseInt(month.split('-')[1], 10) - 1;
+        return { month: MONTHS_PT[monthNum] || month, count };
+      })
+      .sort((a, b) => MONTHS_PT.indexOf(a.month) - MONTHS_PT.indexOf(b.month));
   }, [stats]);
 
   const operationData = useMemo(() => {
@@ -102,15 +113,9 @@ export default function AdminDashboard() {
     if (!blockModal || !blockReason.trim()) return;
     setSavingBlock(true);
     try {
-      let signatureUrl = null;
-      if (sigRef.current && !sigRef.current.isEmpty()) {
-        const trimmed = sigRef.current.getTrimmedCanvas();
-        signatureUrl = trimmed.toDataURL('image/png');
-      }
       await examService.blockUser(blockModal.cpf, {
-        blockedBy: 'Admin',
+        blockedBy: 'Liderança DHL',
         blockReason: blockReason.trim(),
-        blockSignature: signatureUrl,
       });
       queryClient.invalidateQueries({ queryKey: ['latestExams'] });
       queryClient.invalidateQueries({ queryKey: ['examAggregation'] });
@@ -118,6 +123,21 @@ export default function AdminDashboard() {
       setBlockReason('');
     } catch (err) {
       console.error('Erro ao bloquear:', err); // eslint-disable-line no-console
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
+  const handleUnblockConfirm = async () => {
+    if (!unblockModal) return;
+    setSavingBlock(true);
+    try {
+      await examService.unblockUser(unblockModal.cpf);
+      queryClient.invalidateQueries({ queryKey: ['latestExams'] });
+      queryClient.invalidateQueries({ queryKey: ['examAggregation'] });
+      setUnblockModal(null);
+    } catch (err) {
+      console.error('Erro ao desbloquear:', err); // eslint-disable-line no-console
     } finally {
       setSavingBlock(false);
     }
@@ -226,9 +246,6 @@ export default function AdminDashboard() {
                 onKeyDown={(e) => { if (e.key === 'Enter') applyFilters(); }}
                 style={{ width: 180, padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
               />
-              <button className="button is-small" onClick={applyFilters} style={{ background: '#D40511', color: '#fff', border: 'none' }}>
-                <i className="fas fa-search" />
-              </button>
               <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
                 <option value="">Todas cidades</option>
                 {['Avaré', 'Barretos', 'Bauru'].map((c) => <option key={c} value={c}>{c}</option>)}
@@ -249,6 +266,9 @@ export default function AdminDashboard() {
                   <i className="fas fa-times" /> Limpar
                 </button>
               )}
+              <button className="button is-small" onClick={applyFilters} style={{ background: '#D40511', color: '#fff', border: 'none' }}>
+                <i className="fas fa-search" />
+              </button>
             </div>
           </div>
 
@@ -320,9 +340,15 @@ export default function AdminDashboard() {
           <Link to={`/admin/exam/detail/${dropdownPos.exam.uid}`} style={{ display: 'block', padding: '0.5rem 1rem', fontSize: '0.85rem', color: '#222', textDecoration: 'none' }}>
             <i className="fas fa-eye" style={{ width: 18 }} /> Visualizar
           </Link>
-          <button onClick={() => { setBlockModal(dropdownPos.exam); setDropdownPos(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.85rem', color: '#D32F2F', border: 'none', background: 'transparent', cursor: 'pointer' }}>
-            <i className="fas fa-ban" style={{ width: 18 }} /> Bloquear
-          </button>
+          {dropdownPos.exam.status === 'blocked' ? (
+            <button onClick={() => { setUnblockModal(dropdownPos.exam); setDropdownPos(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.85rem', color: '#28A745', border: 'none', background: 'transparent', cursor: 'pointer' }}>
+              <i className="fas fa-lock-open" style={{ width: 18 }} /> Desbloquear
+            </button>
+          ) : (
+            <button onClick={() => { setBlockModal(dropdownPos.exam); setDropdownPos(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.85rem', color: '#D32F2F', border: 'none', background: 'transparent', cursor: 'pointer' }}>
+              <i className="fas fa-ban" style={{ width: 18 }} /> Bloquear
+            </button>
+          )}
         </div>
       )}
 
@@ -331,17 +357,30 @@ export default function AdminDashboard() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: 16 }} onClick={() => { setBlockModal(null); setBlockReason(''); }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 32, maxWidth: 480, width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#D32F2F', margin: '0 0 4px' }}>Bloquear Colaborador</h2>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 16px' }}>{blockModal.name} — {formatCPF(blockModal.cpf || '')}</p>
+            <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 16px' }}>{blockModal.name} — {formatCPF(blockModal.cpf || '')} — {blockModal.operationType}</p>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: '#444' }}>Motivo do bloqueio</label>
             <textarea className="textarea" rows={4} placeholder="Descreva o motivo..." value={blockReason} onChange={(e) => setBlockReason(e.target.value)} style={{ marginBottom: 16, resize: 'vertical' }} />
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6, color: '#444' }}>Assinatura do administrador</label>
-            <div style={{ border: '2px dashed #ccc', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
-              <SignatureCanvas ref={sigRef} penColor="#000" canvasProps={{ width: 600, height: 150, style: { width: '100%', height: 150, cursor: 'crosshair' } }} />
-            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
               <button className="button" onClick={() => { setBlockModal(null); setBlockReason(''); }} disabled={savingBlock}>Cancelar</button>
               <button className="button" disabled={!blockReason.trim() || savingBlock} onClick={handleBlockConfirm} style={{ background: '#D32F2F', color: '#fff', border: 'none' }}>
                 {savingBlock ? 'Salvando...' : 'Confirmar Bloqueio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unblock Modal */}
+      {unblockModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: 16 }} onClick={() => setUnblockModal(null)}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 32, maxWidth: 420, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#28A745', margin: '0 0 4px' }}>Desbloquear Colaborador</h2>
+            <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 16px' }}>{unblockModal.name} — {formatCPF(unblockModal.cpf || '')} — {unblockModal.operationType}</p>
+            <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: 20 }}>Tem certeza que deseja desbloquear este colaborador?</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button className="button" onClick={() => setUnblockModal(null)} disabled={savingBlock}>Cancelar</button>
+              <button className="button" disabled={savingBlock} onClick={handleUnblockConfirm} style={{ background: '#28A745', color: '#fff', border: 'none' }}>
+                {savingBlock ? 'Salvando...' : 'Confirmar Desbloqueio'}
               </button>
             </div>
           </div>

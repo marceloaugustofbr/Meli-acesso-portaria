@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { firestore } from '../../firebase';
 import { examService } from '../../services';
 import { maskCPF, formatCPF, validateCPF } from '../../utils/cpf';
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 30000;
 
 export default function Portaria() {
   const cpfRef = useRef(null);
@@ -14,6 +17,39 @@ export default function Portaria() {
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
   const [authorized, setAuthorized] = useState(false);
+
+  const [attempts, setAttempts] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('portaria_attempts');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.lockUntil && Date.now() < data.lockUntil) {
+          return { count: data.count, lockUntil: data.lockUntil };
+        }
+      }
+    } catch {} // eslint-disable-line no-empty
+    return { count: 0, lockUntil: 0 };
+  });
+
+  const [lockTimer, setLockTimer] = useState(0);
+  const locked = attempts.lockUntil > Date.now();
+
+  useEffect(() => {
+    if (!locked) { setLockTimer(0); return undefined; }
+    const tick = () => {
+      const remaining = Math.ceil((attempts.lockUntil - Date.now()) / 1000);
+      if (remaining <= 0) { setLockTimer(0); setAttempts({ count: 0, lockUntil: 0 }); return; }
+      setLockTimer(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [locked, attempts.lockUntil]);
+
+  const saveAttempts = useCallback((count, lockUntil) => {
+    sessionStorage.setItem('portaria_attempts', JSON.stringify({ count, lockUntil }));
+    setAttempts({ count, lockUntil });
+  }, []);
 
   useEffect(() => {
     const saved = sessionStorage.getItem('portaria_auth');
@@ -30,7 +66,7 @@ export default function Portaria() {
 
   const handlePinSubmit = async (e) => {
     e.preventDefault();
-    if (!accessPin.trim()) return;
+    if (!accessPin.trim() || locked) return;
     setPinLoading(true);
     setPinError('');
     try {
@@ -39,10 +75,18 @@ export default function Portaria() {
         const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
         sessionStorage.setItem('portaria_auth', 'true');
         sessionStorage.setItem('portaria_auth_expires', String(expiresAt));
+        sessionStorage.removeItem('portaria_attempts');
         setAuthorized(true);
         setPinError('');
       } else {
-        setPinError('Senha incorreta');
+        const newCount = attempts.count + 1;
+        if (newCount >= MAX_ATTEMPTS) {
+          saveAttempts(0, Date.now() + LOCKOUT_MS);
+          setPinError(`Muitas tentativas. Aguarde ${LOCKOUT_MS / 1000}s`);
+        } else {
+          saveAttempts(newCount, 0);
+          setPinError(`Senha incorreta (${MAX_ATTEMPTS - newCount} tentativa(s) restante(s))`);
+        }
       }
     } catch {
       setPinError('Erro ao validar senha');
@@ -85,9 +129,10 @@ export default function Portaria() {
           <input
             type="password"
             className="input is-medium"
-            placeholder="Senha"
+            placeholder={locked ? `Bloqueado por ${lockTimer}s` : 'Senha'}
             value={accessPin}
             onChange={(e) => { setAccessPin(e.target.value); setPinError(''); }}
+            disabled={locked}
             autoFocus // eslint-disable-line jsx-a11y/no-autofocus
             style={{ textAlign: 'center', marginBottom: 12 }}
           />
@@ -95,7 +140,7 @@ export default function Portaria() {
           <button
             type="submit"
             className={`button is-medium is-fullwidth ${pinLoading ? 'is-loading' : ''}`}
-            disabled={pinLoading}
+            disabled={pinLoading || locked}
             style={{ background: '#D40511', color: '#fff', border: 'none' }}
           >
             Acessar
@@ -281,7 +326,7 @@ export default function Portaria() {
               Liberado em {examData.createdAt ? new Date(examData.createdAt).toLocaleDateString('pt-BR') : '-'}
             </p>
             <p style={{ fontSize: '0.8rem', color: '#888', margin: '4px 0 0' }}>
-              Nota: {examData.score ?? '-'}
+              Nota: {examData.percentage != null ? (examData.percentage / 10).toFixed(1) : '-'}
             </p>
             <button
               className="button is-medium is-fullwidth"
