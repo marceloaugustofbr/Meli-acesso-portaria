@@ -73,6 +73,9 @@ export const examService = {
       percentage,
       status: computedStatus,
       signature: examData.signature || null,
+      signatureIp: examData.signatureIp || null,
+      signatureDate: examData.signatureDate || now,
+      signatureUserAgent: examData.signatureUserAgent || null,
       answers: validatedAnswers,
       createdAt: now,
       attempts: FIELD_VALUE.increment(1),
@@ -109,48 +112,16 @@ export const examService = {
 
   async getAggregation() {
     const snap = await firestore.doc(AGGREGATION_DOC).get();
-
     const kpis = snap.exists ? snap.data() : {};
 
-    const allDocs = [];
-    let lastDoc = null;
-    const PAGE_SIZE = 300;
-
-    const fetchPage = async () => {
-      let query = firestore.collection(LATEST_COLLECTION).orderBy('createdAt', 'desc').limit(PAGE_SIZE);
-      if (lastDoc) query = query.startAfter(lastDoc);
-      const snapshot = await query.get();
-      if (snapshot.empty) return;
-      snapshot.docs.forEach((d) => allDocs.push(d));
-      if (snapshot.docs.length < PAGE_SIZE) return;
-      lastDoc = snapshot.docs[snapshot.docs.length - 1];
-      await fetchPage();
-    };
-
-    await fetchPage();
-
-    const monthlyCounts = {};
-    const typeCounts = {};
-
-    allDocs.forEach((doc) => {
-      const d = doc.data();
-      const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
-      monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
-
-      const type = d.operationType || 'unknown';
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-    });
-
     const aggregation = {
-      total: kpis.total ?? allDocs.length,
-      totalPeople: kpis.totalPeople ?? new Set(allDocs.map((d) => d.id)).size,
+      total: kpis.total ?? 0,
+      totalPeople: kpis.totalPeople ?? 0,
       approvedPeople: kpis.approvedPeople ?? 0,
       reprovedPeople: kpis.reprovedPeople ?? 0,
-      monthlyCounts,
-      typeCounts,
+      monthlyCounts: kpis.monthlyCounts ?? {},
+      typeCounts: kpis.typeCounts ?? {},
     };
-
-    await firestore.doc(AGGREGATION_DOC).set(aggregation, { merge: true });
 
     return {
       ...aggregation,

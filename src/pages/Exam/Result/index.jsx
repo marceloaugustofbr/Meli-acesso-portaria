@@ -31,12 +31,14 @@ function AnimatedNumber({ value, duration = 800 }) {
 
 export default function ExamResult() {
   const history = useHistory();
-  const { identification, startTime, answers, signature, reset } = useExamStore(
+  const { identification, startTime, answers, signature, signatureIp, signatureUserAgent, reset } = useExamStore(
     (s) => ({
       identification: s.identification,
       startTime: s.startTime,
       answers: s.answers,
       signature: s.signature,
+      signatureIp: s.signatureIp,
+      signatureUserAgent: s.signatureUserAgent,
       reset: s.reset,
     }),
     shallow
@@ -120,6 +122,9 @@ export default function ExamResult() {
           percentage,
           status,
           signature: signatureUrl || signature,
+          signatureIp: signatureIp || null,
+          signatureDate: new Date().toISOString(),
+          signatureUserAgent: signatureUserAgent || null,
           answers: enrichedAnswers,
         };
         await examService.create(examData);

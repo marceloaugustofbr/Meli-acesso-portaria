@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import classNames from 'classnames';
@@ -11,7 +11,17 @@ export default function ExamSignature() {
   const sigRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const setSignature = useExamStore((s) => s.setSignature);
+  const setSignatureIp = useExamStore((s) => s.setSignatureIp);
+  const setSignatureUserAgent = useExamStore((s) => s.setSignatureUserAgent);
   const setStep = useExamStore((s) => s.setStep);
+
+  useEffect(() => {
+    setSignatureUserAgent(navigator.userAgent);
+    fetch('https://api.ipify.org?format=json')
+      .then((r) => r.json())
+      .then((data) => setSignatureIp(data.ip))
+      .catch(() => setSignatureIp('não disponível'));
+  }, []);
 
   const handleClear = () => {
     sigRef.current?.clear();

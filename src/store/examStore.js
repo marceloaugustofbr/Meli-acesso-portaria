@@ -9,6 +9,8 @@ const initialState = {
   answers: [],
   termsAccepted: false,
   signature: null,
+  signatureIp: null,
+  signatureUserAgent: null,
   cpf: '',
 };
 
@@ -32,12 +34,14 @@ export const useExamStore = createWithEqualityFn(
         }),
       setTermsAccepted: (accepted) => set({ termsAccepted: accepted }),
       setSignature: (signature) => set({ signature }),
+      setSignatureIp: (ip) => set({ signatureIp: ip }),
+      setSignatureUserAgent: (ua) => set({ signatureUserAgent: ua }),
       setCpf: (cpf) => set({ cpf }),
       reset: () => set(initialState),
     }),
     {
       name: 'exam-storage',
-      partialize: ({ signature: _signature, ...rest }) => rest,
+      partialize: ({ signature: _signature, signatureIp: _ip, signatureUserAgent: _ua, videoFinished: _videoFinished, ...rest }) => rest,
     }
   ),
   undefined

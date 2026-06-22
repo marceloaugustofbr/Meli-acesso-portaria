@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { firestore } from '../../firebase';
 import { examService } from '../../services';
 import { maskCPF, formatCPF, validateCPF } from '../../utils/cpf';
 
@@ -11,18 +12,42 @@ export default function Portaria() {
   const [cpfError, setCpfError] = useState('');
   const [accessPin, setAccessPin] = useState('');
   const [pinError, setPinError] = useState('');
-  const [authorized, setAuthorized] = useState(
-    () => sessionStorage.getItem('portaria_auth') === 'true'
-  );
+  const [pinLoading, setPinLoading] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
-  const handlePinSubmit = (e) => {
+  useEffect(() => {
+    const saved = sessionStorage.getItem('portaria_auth');
+    if (saved === 'true') {
+      const expiresAt = sessionStorage.getItem('portaria_auth_expires');
+      if (expiresAt && Date.now() < Number(expiresAt)) {
+        setAuthorized(true);
+      } else {
+        sessionStorage.removeItem('portaria_auth');
+        sessionStorage.removeItem('portaria_auth_expires');
+      }
+    }
+  }, []);
+
+  const handlePinSubmit = async (e) => {
     e.preventDefault();
-    if (process.env.REACT_APP_PORTARIA_PIN && accessPin === process.env.REACT_APP_PORTARIA_PIN) {
-      sessionStorage.setItem('portaria_auth', 'true');
-      setAuthorized(true);
-      setPinError('');
-    } else {
-      setPinError('Senha incorreta');
+    if (!accessPin.trim()) return;
+    setPinLoading(true);
+    setPinError('');
+    try {
+      const doc = await firestore.collection('config').doc('portaria').get();
+      if (doc.exists && doc.data().pin === accessPin) {
+        const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
+        sessionStorage.setItem('portaria_auth', 'true');
+        sessionStorage.setItem('portaria_auth_expires', String(expiresAt));
+        setAuthorized(true);
+        setPinError('');
+      } else {
+        setPinError('Senha incorreta');
+      }
+    } catch {
+      setPinError('Erro ao validar senha');
+    } finally {
+      setPinLoading(false);
     }
   };
 
@@ -69,7 +94,8 @@ export default function Portaria() {
           {pinError && <p style={{ fontSize: '0.8rem', color: '#D32F2F', margin: '0 0 12px' }}>{pinError}</p>}
           <button
             type="submit"
-            className="button is-medium is-fullwidth"
+            className={`button is-medium is-fullwidth ${pinLoading ? 'is-loading' : ''}`}
+            disabled={pinLoading}
             style={{ background: '#D40511', color: '#fff', border: 'none' }}
           >
             Acessar

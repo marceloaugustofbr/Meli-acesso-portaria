@@ -6,20 +6,36 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
     match /users/{userId} {
       function isOwner() {
         return request.auth.uid == userId;
       }
 
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && isOwner();
+      allow create: if isAuthenticated()
+        && !request.resource.data.hasAny(['isAdmin']);
+      allow update: if isAuthenticated() && isOwner()
+        && !request.resource.data.isAdmin;
       allow delete: if isAuthenticated() && isOwner();
     }
 
     match /latest_exams/{cpf} {
       allow read: if true;
-      allow write: if true;
+      allow create: if true
+        && request.resource.data.keys().hasAll([
+          'uid', 'name', 'cpf', 'status', 'score',
+          'percentage', 'answers', 'createdAt'
+        ])
+        && request.resource.data.answers is list
+        && request.resource.data.score is number
+        && request.resource.data.percentage is number;
+      allow update: if true;
+      allow delete: if false;
     }
 
     match /aggregations/{docId} {
@@ -28,11 +44,13 @@ service cloud.firestore {
     }
 
     match /exam_uids/{uid} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
     match /questions/{questionId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }

@@ -6,8 +6,20 @@ import classNames from 'classnames';
 import { toastr } from 'react-redux-toastr';
 import { useAuth } from '../../hooks';
 import { authService } from '../../services';
+import { firestore } from '../../firebase';
 import { loginSchema } from '../../validations';
 import ROUTES from '../../constants/routes';
+
+async function seedPortariaPin() {
+  try {
+    const doc = await firestore.collection('config').doc('portaria').get();
+    if (!doc.exists) {
+      await firestore.collection('config').doc('portaria').set({ pin: '1234' });
+    }
+  } catch {
+    // silent — non-critical
+  }
+}
 
 export default function Login() {
   const history = useHistory();
@@ -33,6 +45,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await authService.login(data.email, data.password);
+      await seedPortariaPin();
       history.push(ROUTES.ADMIN_DASHBOARD);
     } catch (err) {
       const messages = {

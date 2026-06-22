@@ -56,12 +56,13 @@ export default function ExamVideo() {
           <video
             ref={videoRef}
             controls
+            preload="metadata"
             onPlay={handlePlay}
             onPause={handlePause}
             onEnded={handleEnded}
             onRateChange={handleRateChange}
             style={{ width: '100%', borderRadius: 8, display: 'block' }}
-            src="https://res.cloudinary.com/dl4n3ldua/video/upload/v1781823597/Integra%C3%A7%C3%A3o_Diaristas_-_Novo_lgi8jl.mp4"
+            src="https://res.cloudinary.com/dl4n3ldua/video/upload/f_auto,q_auto/v1781823597/Integra%C3%A7%C3%A3o_Diaristas_-_Novo_lgi8jl.mp4"
           >
             <track kind="captions" src="" label="Português" />
             Seu navegador não suporta vídeo.
@@ -71,7 +72,7 @@ export default function ExamVideo() {
               Assista ao vídeo completo para realizar a prova · {timeStr}
             </p>
           )}
-          {!videoFinished && (
+          {process.env.NODE_ENV === 'development' && !videoFinished && (
             <button
               className="button is-light is-small mb-3"
               onClick={() => setVideoFinished()}
