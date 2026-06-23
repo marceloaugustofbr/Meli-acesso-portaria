@@ -1,16 +1,17 @@
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 
 export const authService = {
   login(email, password) {
-    return auth.signInWithEmailAndPassword(email, password);
+    return signInWithEmailAndPassword(auth, email, password);
   },
 
   logout() {
-    return auth.signOut();
+    return signOut(auth);
   },
 
   onAuthChanged(callback) {
-    return auth.onAuthStateChanged(callback);
+    return onAuthStateChanged(auth, callback);
   },
 
   getCurrentUser() {

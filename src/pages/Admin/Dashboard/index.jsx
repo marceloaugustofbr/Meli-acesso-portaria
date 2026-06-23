@@ -2,7 +2,6 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useQueryClient } from '@tanstack/react-query';
-import * as XLSX from 'xlsx';
 import { useExamStats, useLatestExams } from '../../../hooks';
 import { examService } from '../../../services';
 import AdminLayout from '../../../components/ui/AdminLayout';
@@ -149,6 +148,7 @@ export default function AdminDashboard() {
   const handleExport = async (format) => {
     setExportOpen(false);
     try {
+      const XLSX = await import('xlsx');
       const res = await examService.exportExams(appliedFilters);
       const rows = (res.data || []).map((exam) => ({
         Nome: exam.name || '',

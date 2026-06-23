@@ -35,13 +35,17 @@ export default function ExamIntro() {
       <div className="stagger">
         <div className="has-text-centered" style={{ marginBottom: '2rem' }}>
           <div style={{ margin: '0 auto 1.25rem', textAlign: 'center' }}>
-            <img src="/dhl-logov2.png" alt="DHL" style={{ width: 144 }} />
+            <img
+              src="/LOGOSAFEACESS.png"
+              alt="SafeAcess"
+              style={{ width: 200, userSelect: 'none', WebkitUserDrag: 'none' }}
+              draggable="false"
+              onContextMenu={(e) => e.preventDefault()}
+            />
           </div>
-          <h1 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#D40511', margin: '0 0 0.5rem' }}>
-            Treinamento de Segurança Obrigatório
-          </h1>
-          <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6, maxWidth: 480, margin: '0 auto' }}>
-            Para ter acesso às operações da DHL, é obrigatório a realização do treinamento de segurança.
+
+          <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6, maxWidth: 420, margin: '0 auto' }}>
+            Plataforma de treinamento e liberação de acesso às operações da DHL.
           </p>
         </div>
 
