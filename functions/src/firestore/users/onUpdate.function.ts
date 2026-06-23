@@ -7,23 +7,26 @@ export default firestore
     const before = change.before.data();
     const after = change.after.data();
 
-    if (before.isAdmin === after.isAdmin) {
+    if (before.isAdmin === after.isAdmin && before.cities === after.cities) {
       return null;
     }
 
     const { uid } = context.params;
 
-    console.log(
-      `[SECURITY] User ${uid} isAdmin changed: ${before.isAdmin} -> ${after.isAdmin}`
-    );
-
-    if (after.isAdmin === true) {
-      console.warn(
-        `[SECURITY] ADMIN PROMOTION: ${uid} promoted to admin. Ensure this was an authorized action.`
+    if (before.isAdmin !== after.isAdmin) {
+      console.log(
+        `[SECURITY] User ${uid} isAdmin changed: ${before.isAdmin} -> ${after.isAdmin}`
       );
+
+      if (after.isAdmin === true) {
+        console.warn(
+          `[SECURITY] ADMIN PROMOTION: ${uid} promoted to admin. Ensure this was an authorized action.`
+        );
+      }
     }
 
     return auth().setCustomUserClaims(uid, {
-      isAdmin: after.isAdmin,
+      isAdmin: after.isAdmin || false,
+      cities: after.cities || [],
     });
   });
