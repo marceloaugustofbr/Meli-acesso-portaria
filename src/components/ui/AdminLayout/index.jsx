@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
-import { Link, useHistory } from 'react-router-dom';
+import { Link, useHistory, useLocation } from 'react-router-dom';
 import { authService } from '../../../services';
 import ROUTES from '../../../constants/routes';
 
+const NAV_ITEMS = [
+  { label: 'Dashboard', path: ROUTES.ADMIN_DASHBOARD },
+  { label: 'Usuários', path: ROUTES.ADMIN_USERS },
+];
+
 export default function AdminLayout({ children }) {
   const history = useHistory();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -37,7 +43,16 @@ export default function AdminLayout({ children }) {
         </div>
         <div className={classNames('navbar-menu', { 'is-active': menuOpen })}>
           <div className="navbar-start">
-            <Link className="navbar-item" to={ROUTES.ADMIN_DASHBOARD} onClick={() => setMenuOpen(false)}>Dashboard</Link>
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.path}
+                className={classNames('navbar-item', { 'is-active': location.pathname === item.path })}
+                to={item.path}
+                onClick={() => setMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
           </div>
           <div className="navbar-end">
             <div className="navbar-item">

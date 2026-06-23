@@ -1,7 +1,6 @@
 const ROUTES = {
   ROOT: '/',
   LOGIN: '/login',
-  EXAM: '/exam',
   EXAM_CHECK: '/exam/check',
   EXAM_INTRO: '/exam/intro',
   EXAM_VIDEO: '/exam/video',
@@ -10,9 +9,7 @@ const ROUTES = {
   EXAM_TERMS: '/exam/terms',
   EXAM_SIGNATURE: '/exam/signature',
   EXAM_RESULT: '/exam/result',
-  ADMIN: '/admin',
   ADMIN_DASHBOARD: '/admin/dashboard',
-  ADMIN_EXAMS: '/admin/exams',
   ADMIN_EXAM_DETAIL: '/admin/exam/detail/:uid',
   ADMIN_USERS: '/admin/users',
   ADMIN_SETTINGS: '/admin/settings',

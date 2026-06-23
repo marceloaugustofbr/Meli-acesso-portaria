@@ -87,3 +87,9 @@ yarn-error.log*
 
 # service account key
 serviceAccountKey.json
+
+# CloudFlare Workers secrets
+workers/**/.env
+workers/**/.dev.vars
+workers/**/node_modules/
+workers/**/.wrangler/

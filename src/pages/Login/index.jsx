@@ -3,28 +3,16 @@ import { useHistory, Redirect } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import classNames from 'classnames';
-import { toastr } from 'react-redux-toastr';
 import { useAuth } from '../../hooks';
 import { authService } from '../../services';
-import { firestore } from '../../firebase';
 import { loginSchema } from '../../validations';
 import ROUTES from '../../constants/routes';
 
-async function seedPortariaPin() {
-  try {
-    const doc = await firestore.collection('config').doc('portaria').get();
-    if (!doc.exists) {
-      await firestore.collection('config').doc('portaria').set({ pin: '1234' });
-    }
-  } catch {
-    // silent — non-critical
-  }
-}
-
 export default function Login() {
   const history = useHistory();
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const {
     register,
@@ -43,9 +31,9 @@ export default function Login() {
 
   const onSubmit = async (data) => {
     setSubmitting(true);
+    setErrorMsg('');
     try {
       await authService.login(data.email, data.password);
-      await seedPortariaPin();
       history.push(ROUTES.ADMIN_DASHBOARD);
     } catch (err) {
       const messages = {
@@ -54,7 +42,7 @@ export default function Login() {
         'auth/invalid-email': 'Email inválido',
         'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde',
       };
-      toastr.error('Erro', messages[err.code] || 'Erro ao fazer login');
+      setErrorMsg(messages[err.code] || 'Erro ao fazer login');
     } finally {
       setSubmitting(false);
     }
@@ -105,6 +93,11 @@ export default function Login() {
               />
               {errors.password && <p style={{ fontSize: '0.78rem', color: '#D32F2F', marginTop: 4 }}>{errors.password.message}</p>}
             </div>
+            {errorMsg && (
+              <p style={{ fontSize: '0.85rem', color: '#D32F2F', marginBottom: '1rem', textAlign: 'center' }}>
+                {errorMsg}
+              </p>
+            )}
             <button
               type="submit"
               className={classNames('btn-dhl ripple-btn', { 'is-loading': submitting })}

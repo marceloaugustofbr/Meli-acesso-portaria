@@ -4,7 +4,6 @@ import { shallow } from 'zustand/shallow';
 import { useExamStore } from '../../../store';
 import { examService, storageService } from '../../../services';
 import { formatCPF } from '../../../utils/cpf';
-import { useQuestions } from '../../../hooks';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
 import Loading from '../../../components/ui/Loading';
@@ -43,27 +42,13 @@ export default function ExamResult() {
     }),
     shallow
   );
-  const { data: questions, isLoading: questionsLoading } = useQuestions();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [attemptCount, setAttemptCount] = useState(0);
-  const [autoSaved, setAutoSaved] = useState(false);
+  const [result, setResult] = useState(null);
   const savingRef = useRef(false);
 
   const endTime = useMemo(() => new Date().toISOString(), []);
-
-  const correctCount = useMemo(() => {
-    if (!questions || !answers.length) return 0;
-    return answers.filter((a) => {
-      const question = questions.find((qq) => qq.id === a.questionId);
-      return question && a.selectedAnswer === question.correctAnswer;
-    }).length;
-  }, [answers, questions]);
-
-  const wrongCount = answers.length - correctCount;
-  const total = answers.length;
-  const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
-  const status = percentage >= 70 ? 'approved' : 'reproved';
 
   const start = startTime ? new Date(startTime) : new Date();
   const end = new Date(endTime);
@@ -78,7 +63,7 @@ export default function ExamResult() {
   }, [identification]);
 
   useEffect(() => {
-    if (questionsLoading || savingRef.current || autoSaved) return undefined;
+    if (savingRef.current || result) return undefined;
     savingRef.current = true;
     setSaving(true);
 
@@ -95,19 +80,7 @@ export default function ExamResult() {
           }
         }
 
-        const enrichedAnswers = questions
-          ? answers.map((a) => {
-              const q = questions.find((qq) => qq.id === a.questionId);
-              if (!q) return { ...a, question: '', correctAnswer: '', isCorrect: false };
-              return {
-                ...a,
-                question: q.question,
-                correctAnswer: q.correctAnswer,
-                isCorrect: a.selectedAnswer === q.correctAnswer,
-              };
-            })
-          : answers;
-
+        // O Worker calcula a nota server-side com as respostas corretas
         const examData = {
           name: identification?.name,
           cpf: identification?.cpf,
@@ -116,19 +89,23 @@ export default function ExamResult() {
           startTime,
           endTime,
           duration,
-          score: correctCount,
-          correctAnswers: correctCount,
-          wrongAnswers: wrongCount,
-          percentage,
-          status,
+          answers,
           signature: signatureUrl || signature,
           signatureIp: signatureIp || null,
           signatureDate: new Date().toISOString(),
           signatureUserAgent: signatureUserAgent || null,
-          answers: enrichedAnswers,
         };
-        await examService.create(examData);
-        if (mounted) setAutoSaved(true);
+        const response = await examService.create(examData);
+        if (mounted) {
+          setResult({
+            correctCount: response.score,
+            total: answers.length,
+            wrongCount: answers.length - response.score,
+            percentage: response.percentage,
+            status: response.status,
+          });
+          setSaving(false);
+        }
       } catch (err) {
         console.error('Erro ao salvar exame:', err);
         if (mounted) {
@@ -140,9 +117,18 @@ export default function ExamResult() {
     })();
 
     return () => { mounted = false; };
-  }, [questionsLoading]);
+  }, []);
 
-  if (questionsLoading) return <Loading fullPage text="Calculando resultado..." />;
+  const finalStatus = result?.status;
+  const showLoading = saving && !result;
+
+  if (showLoading) {
+    return (
+      <ExamLayout>
+        <Loading fullPage text="Salvando resultado..." />
+      </ExamLayout>
+    );
+  }
 
   return (
     <ExamLayout>
@@ -151,32 +137,48 @@ export default function ExamResult() {
           width: 72,
           height: 72,
           borderRadius: '50%',
-          background: status === 'approved' ? '#E8F5E9' : '#FFEBEE',
+          background: finalStatus === 'approved' ? '#E8F5E9' : '#FFEBEE',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           margin: '0 auto 1rem',
         }}>
           <i
-            className={`fas ${status === 'approved' ? 'fa-check-circle' : 'fa-times-circle'}`}
-            style={{ fontSize: '2rem', color: status === 'approved' ? '#28A745' : '#D32F2F' }}
+            className={`fas ${finalStatus === 'approved' ? 'fa-check-circle' : 'fa-times-circle'}`}
+            style={{ fontSize: '2rem', color: finalStatus === 'approved' ? '#28A745' : '#D32F2F' }}
           />
         </div>
 
         <h1 style={{
           fontSize: '1.5rem',
           fontWeight: 800,
-          color: status === 'approved' ? '#28A745' : '#D32F2F',
+          color: finalStatus === 'approved' ? '#28A745' : '#D32F2F',
           margin: '0 0 0.25rem',
         }}>
-          {status === 'approved' ? 'APROVADO' : 'REPROVADO'}
+          {finalStatus === 'approved' ? 'APROVADO' : 'REPROVADO'}
         </h1>
 
-        <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '1.5rem' }}>
-          {status === 'approved'
+        <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '0.75rem' }}>
+          {finalStatus === 'approved'
             ? 'Parabéns! Você foi aprovado no treinamento.'
             : 'Infelizmente você não atingiu a nota mínima. Tente novamente.'}
         </p>
+
+        {finalStatus === 'approved' && (
+          <div style={{
+            background: '#E3F2FD', borderRadius: 10, padding: '1rem 1.25rem',
+            marginBottom: '1.5rem', textAlign: 'left',
+          }}>
+            <p style={{ fontSize: '0.85rem', color: '#1565C0', fontWeight: 600, margin: '0 0 0.35rem' }}>
+              <i className="fas fa-info-circle" style={{ marginRight: 6 }} />
+              Próximos passos
+            </p>
+            <p style={{ fontSize: '0.82rem', color: '#1E3A5F', margin: 0, lineHeight: 1.5 }}>
+              Você está apto a acessar a operação. Dirija-se à <strong>portaria interna</strong> e apresente seu
+              <strong> CPF</strong> para ser liberado.
+            </p>
+          </div>
+        )}
 
         <div style={{
           background: '#F9F9F9',
@@ -209,19 +211,19 @@ export default function ExamResult() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', textAlign: 'center' }}>
             <div style={{ background: '#fff', borderRadius: 8, padding: '0.75rem' }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#222' }}>
-                <AnimatedNumber value={correctCount} />
+                <AnimatedNumber value={result?.correctCount ?? 0} />
               </div>
               <div style={{ fontSize: '0.7rem', color: '#888' }}>Acertos</div>
             </div>
             <div style={{ background: '#fff', borderRadius: 8, padding: '0.75rem' }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#D32F2F' }}>
-                <AnimatedNumber value={wrongCount} />
+                <AnimatedNumber value={result?.wrongCount ?? 0} />
               </div>
               <div style={{ fontSize: '0.7rem', color: '#888' }}>Erros</div>
             </div>
             <div style={{ background: '#fff', borderRadius: 8, padding: '0.75rem' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: status === 'approved' ? '#28A745' : '#D32F2F' }}>
-                <AnimatedNumber value={percentage} />%
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: finalStatus === 'approved' ? '#28A745' : '#D32F2F' }}>
+                <AnimatedNumber value={result?.percentage ?? 0} />%
               </div>
               <div style={{ fontSize: '0.7rem', color: '#888' }}>Nota</div>
             </div>
@@ -234,14 +236,7 @@ export default function ExamResult() {
 
         {saveError && <p style={{ fontSize: '0.8rem', color: '#D32F2F', marginBottom: '0.75rem' }}>{saveError}</p>}
 
-        {saving && !autoSaved && (
-          <p style={{ fontSize: '0.85rem', color: '#888', marginTop: '0.5rem' }}>
-            <i className="fas fa-spinner fa-pulse" style={{ marginRight: 8 }} />
-            Salvando resultado...
-          </p>
-        )}
-
-        {autoSaved && (
+        {result && (
           <button onClick={() => { reset(); history.push(ROUTES.ROOT); }}
             style={{ marginTop: '1rem', padding: '0.75rem 2rem', background: '#28A745',
                      color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem',

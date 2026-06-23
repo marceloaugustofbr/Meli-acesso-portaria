@@ -123,6 +123,7 @@ export default function AdminDashboard() {
       setBlockReason('');
     } catch (err) {
       console.error('Erro ao bloquear:', err); // eslint-disable-line no-console
+      alert(`Erro ao bloquear: ${err.message}`);
     } finally {
       setSavingBlock(false);
     }
@@ -138,6 +139,7 @@ export default function AdminDashboard() {
       setUnblockModal(null);
     } catch (err) {
       console.error('Erro ao desbloquear:', err); // eslint-disable-line no-console
+      alert(`Erro ao desbloquear: ${err.message}`);
     } finally {
       setSavingBlock(false);
     }

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Route, Switch, BrowserRouter, Redirect } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import ROUTES from '../../constants/routes';
 import ProtectedRoute from '../../components/ui/ProtectedRoute';
 import ExamGuard from '../../components/ui/ExamGuard';
 import Loading from '../../components/ui/Loading';
@@ -25,29 +26,10 @@ const ExamTerms = lazy(() => import('../Exam/Terms'));
 const ExamSignature = lazy(() => import('../Exam/Signature'));
 const ExamResult = lazy(() => import('../Exam/Result'));
 const AdminDashboard = lazy(() => import('../Admin/Dashboard'));
-
 const AdminExamDetail = lazy(() => import('../Admin/ExamDetail'));
 const AdminUsers = lazy(() => import('../Admin/Users'));
 const AdminSettings = lazy(() => import('../Admin/Settings'));
 const Portaria = lazy(() => import('../Portaria'));
-
-const ROUTES = {
-  ROOT: '/',
-  LOGIN: '/login',
-  EXAM_INTRO: '/exam/intro',
-  EXAM_CHECK: '/exam/check',
-  EXAM_VIDEO: '/exam/video',
-  EXAM_IDENTIFICATION: '/exam/identification',
-  EXAM_QUESTIONS: '/exam/questions',
-  EXAM_TERMS: '/exam/terms',
-  EXAM_SIGNATURE: '/exam/signature',
-  EXAM_RESULT: '/exam/result',
-  ADMIN_DASHBOARD: '/admin/dashboard',
-
-  ADMIN_EXAM_DETAIL: '/admin/exam/detail/:uid',
-  ADMIN_USERS: '/admin/users',
-  ADMIN_SETTINGS: '/admin/settings',
-};
 
 const stepRoutes = [
   { path: ROUTES.EXAM_CHECK, step: 'check', component: ExamCheck },
@@ -70,7 +52,7 @@ export default function RouterComponent() {
         <Suspense fallback={<LoadingFallback />}>
           <Switch>
             <Route exact path={ROUTES.LOGIN} component={Login} />
-            <Route exact path="/portaria" component={Portaria} />
+            <Route exact path={ROUTES.PORTARIA} component={Portaria} />
 
             <ExamGuard exact path={ROUTES.EXAM_INTRO} step="intro" component={ExamIntro} />
             {stepRoutes.map(({ path, step, component }) => (

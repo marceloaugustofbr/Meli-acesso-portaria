@@ -1,37 +1,38 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useExamStore } from '../../../store';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
 
-const VIDEO_DURATION = 730;
+const MIN_PROGRESS = 0.95;
 
 export default function ExamVideo() {
   const history = useHistory();
   const videoRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(VIDEO_DURATION);
+  const lastTimeRef = useRef(0);
+  const totalPlayedRef = useRef(0);
+  const [progress, setProgress] = useState(0);
+  const [videoEnded, setVideoEnded] = useState(false);
   const videoFinished = useExamStore((s) => s.videoFinished);
   const setVideoFinished = useExamStore((s) => s.setVideoFinished);
   const setStep = useExamStore((s) => s.setStep);
 
-  useEffect(() => {
-    let timer;
-    if (playing && !videoFinished) {
-      timer = setInterval(() => {
-        setTimeLeft((t) => Math.max(0, t - 1));
-      }, 1000);
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !video.duration || videoEnded) return;
+
+    const current = video.currentTime;
+    const diff = current - lastTimeRef.current;
+    lastTimeRef.current = current;
+
+    // Só acumula progressão natural de reprodução: entre 0.1s e 5s por tick
+    if (diff >= 0.1 && diff <= 5) {
+      totalPlayedRef.current += diff;
     }
-    return () => { if (timer) clearInterval(timer); };
-  }, [playing, videoFinished]);
 
-  const canContinue = videoFinished || timeLeft <= 0;
-
-  const handlePlay = () => setPlaying(true);
-
-  const handlePause = () => setPlaying(false);
-
-  const handleEnded = () => setPlaying(false);
+    const pct = Math.min(totalPlayedRef.current / video.duration, 1);
+    setProgress(pct);
+  }, [videoEnded]);
 
   const handleRateChange = () => {
     if (videoRef.current && videoRef.current.playbackRate !== 1) {
@@ -39,14 +40,18 @@ export default function ExamVideo() {
     }
   };
 
+  const handleEnded = () => {
+    setVideoEnded(true);
+    setVideoFinished();
+  };
+
   const handleContinue = () => {
     setStep('identification');
     history.push(ROUTES.EXAM_IDENTIFICATION);
   };
 
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const canContinue = videoFinished || videoEnded || progress >= MIN_PROGRESS;
+  const progressPct = Math.round(progress * 100);
 
   return (
     <ExamLayout>
@@ -56,9 +61,9 @@ export default function ExamVideo() {
           <video
             ref={videoRef}
             controls
+            controlsList="nodownload noremoteplayback"
             preload="metadata"
-            onPlay={handlePlay}
-            onPause={handlePause}
+            onTimeUpdate={handleTimeUpdate}
             onEnded={handleEnded}
             onRateChange={handleRateChange}
             style={{ width: '100%', borderRadius: 8, display: 'block' }}
@@ -68,14 +73,28 @@ export default function ExamVideo() {
             Seu navegador não suporta vídeo.
           </video>
           {!canContinue && (
-            <p style={{ fontSize: '0.75rem', color: '#999', textAlign: 'center', margin: '0.75rem 0 0.5rem' }}>
-              Assista ao vídeo completo para realizar a prova · {timeStr}
-            </p>
+            <div style={{ textAlign: 'center', margin: '0.75rem 0 0.5rem' }}>
+              <p style={{ fontSize: '0.75rem', color: '#999', marginBottom: '0.35rem' }}>
+                Assista ao vídeo completo para realizar a prova
+              </p>
+              <div style={{
+                maxWidth: 300, margin: '0 auto', background: '#e9ecef', borderRadius: 4, height: 6, overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: `${progressPct}%`, height: '100%', background: '#D40511', borderRadius: 4,
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.2rem', display: 'inline-block' }}>
+                {progressPct}%
+              </span>
+            </div>
           )}
-          {process.env.NODE_ENV === 'development' && !videoFinished && (
+          {process.env.NODE_ENV === 'development' && !canContinue && (
             <button
               className="button is-light is-small mb-3"
               onClick={() => setVideoFinished()}
+              style={{ display: 'block', margin: '0 auto' }}
             >
               Simular término do vídeo
             </button>

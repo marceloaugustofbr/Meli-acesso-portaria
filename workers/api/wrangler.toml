@@ -1,0 +1,10 @@
+name = "safeaccess-api"
+main = "src/index.js"
+compatibility_date = "2025-06-22"
+
+[vars]
+FIREBASE_PROJECT_ID = "safeaccessdhl"
+CLOUDINARY_CLOUD_NAME = "dl4n3ldua"
+CLOUDINARY_UPLOAD_PRESET = "meli_preset"
+PIN_SALT_ROUNDS = "10"
+SESSION_DURATION_HOURS = "8"

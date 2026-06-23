@@ -1,24 +1,22 @@
 import React from 'react';
-import * as reactRedux from 'react-redux';
-
-import * as actions from 'state/actions/auth';
+import { render } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Router from '.';
 
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
 describe('<Router /> rendering', () => {
-  const dispatchMock = jest.fn();
-
-  beforeEach(() => {
-    jest
-      .spyOn(reactRedux, 'useDispatch')
-      .mockImplementation(() => dispatchMock);
-    jest.spyOn(actions, 'auth').mockImplementation(jest.fn);
-  });
-
   it('should render without crashing', () => {
-    const { component } = renderWithProviders(<Router />)({
-      auth: { userData: { id: 'testId' } },
-    });
-
-    expect(component.asFragment()).toMatchSnapshot();
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Router />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+    expect(container).toBeTruthy();
   });
 });

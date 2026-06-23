@@ -2,67 +2,58 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ─── Regras restritas ──────────────────────
+    // TODO: Após deploy do Worker, remover accessos diretos do cliente
+    // O Worker usa Admin SDK (service account) que ignora estas regras
+
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isValidCpf(cpf) {
-      return cpf is string
-        && cpf.size() == 11
-        && cpf.matches('^[0-9]{11}$');
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.isAdmin == true;
     }
 
+    // Config: só Worker (via Firebase Auth ID token com isAdmin) pode ler/escrever
     match /config/{docId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
+    // Users: cada um vê seu próprio perfil; admins veem tudo
     match /users/{userId} {
       function isOwner() {
         return request.auth.uid == userId;
       }
 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated()
-        && !request.resource.data.hasAny(['isAdmin']);
-      allow update: if isAuthenticated() && isOwner()
-        && !request.resource.data.isAdmin;
-      allow delete: if isAuthenticated() && isOwner();
+      allow read: if isOwner() || isAdmin();
+      allow create: if isAdmin();
+      allow update: if isOwner() || isAdmin();
+      allow delete: if isAdmin();
     }
 
+    // Latest exams: apenas Worker (admin)
     match /latest_exams/{cpf} {
-      allow read: if true;
-      allow create: if true
-        && isValidCpf(cpf)
-        && request.resource.data.keys().hasAll([
-          'uid', 'name', 'cpf', 'status', 'score',
-          'percentage', 'answers', 'createdAt'
-        ])
-        && request.resource.data.answers is list
-        && request.resource.data.score is number
-        && request.resource.data.percentage is number
-        && request.resource.data.percentage >= 0
-        && request.resource.data.percentage <= 100
-        && request.resource.data.score >= 0
-        && request.resource.data.score <= 23;
-      allow update: if true
-        && isValidCpf(cpf);
-      allow delete: if false;
+      allow read: if isAdmin();
+      allow write, create, delete: if isAdmin();
     }
 
+    // Aggregations: apenas Worker (admin)
     match /aggregations/{docId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
+    // Exam UIDs: apenas Worker (admin)
     match /exam_uids/{uid} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
+    // Questions: Worker (isAdmin) leva as questoes, clientes nao tem acesso direto
     match /questions/{questionId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

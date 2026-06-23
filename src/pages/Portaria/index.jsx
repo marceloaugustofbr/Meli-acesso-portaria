@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { firestore } from '../../firebase';
-import { examService } from '../../services';
+import { examService, apiService } from '../../services';
 import { maskCPF, formatCPF, validateCPF } from '../../utils/cpf';
 
 const MAX_ATTEMPTS = 5;
@@ -17,6 +16,7 @@ export default function Portaria() {
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
   const [authorized, setAuthorized] = useState(false);
+  const [portariaToken, setPortariaToken] = useState('');
 
   const [attempts, setAttempts] = useState(() => {
     try {
@@ -52,15 +52,14 @@ export default function Portaria() {
   }, []);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('portaria_auth');
-    if (saved === 'true') {
-      const expiresAt = sessionStorage.getItem('portaria_auth_expires');
-      if (expiresAt && Date.now() < Number(expiresAt)) {
-        setAuthorized(true);
-      } else {
-        sessionStorage.removeItem('portaria_auth');
-        sessionStorage.removeItem('portaria_auth_expires');
-      }
+    const saved = sessionStorage.getItem('portaria_token');
+    const expiresAt = sessionStorage.getItem('portaria_expires_at');
+    if (saved && expiresAt && Date.now() < Number(expiresAt)) {
+      setPortariaToken(saved);
+      setAuthorized(true);
+    } else {
+      sessionStorage.removeItem('portaria_token');
+      sessionStorage.removeItem('portaria_expires_at');
     }
   }, []);
 
@@ -70,26 +69,24 @@ export default function Portaria() {
     setPinLoading(true);
     setPinError('');
     try {
-      const doc = await firestore.collection('config').doc('portaria').get();
-      if (doc.exists && doc.data().pin === accessPin) {
-        const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
-        sessionStorage.setItem('portaria_auth', 'true');
-        sessionStorage.setItem('portaria_auth_expires', String(expiresAt));
-        sessionStorage.removeItem('portaria_attempts');
-        setAuthorized(true);
-        setPinError('');
+      const res = await apiService.verifyPin(accessPin);
+      const decoded = JSON.parse(atob(res.token.split('.')[1]));
+      const expiresAt = decoded.exp * 1000;
+      sessionStorage.setItem('portaria_token', res.token);
+      sessionStorage.setItem('portaria_expires_at', String(expiresAt));
+      sessionStorage.removeItem('portaria_attempts');
+      setPortariaToken(res.token);
+      setAuthorized(true);
+      setPinError('');
+    } catch (err) {
+      const newCount = attempts.count + 1;
+      if (newCount >= MAX_ATTEMPTS) {
+        saveAttempts(0, Date.now() + LOCKOUT_MS);
+        setPinError(`Muitas tentativas. Aguarde ${LOCKOUT_MS / 1000}s`);
       } else {
-        const newCount = attempts.count + 1;
-        if (newCount >= MAX_ATTEMPTS) {
-          saveAttempts(0, Date.now() + LOCKOUT_MS);
-          setPinError(`Muitas tentativas. Aguarde ${LOCKOUT_MS / 1000}s`);
-        } else {
-          saveAttempts(newCount, 0);
-          setPinError(`Senha incorreta (${MAX_ATTEMPTS - newCount} tentativa(s) restante(s))`);
-        }
+        saveAttempts(newCount, 0);
+        setPinError(`Senha incorreta (${MAX_ATTEMPTS - newCount} tentativa(s) restante(s))`);
       }
-    } catch {
-      setPinError('Erro ao validar senha');
     } finally {
       setPinLoading(false);
     }
@@ -170,7 +167,7 @@ export default function Portaria() {
     setResult(null);
     setExamData(null);
     try {
-      const snapshot = await examService.getLatestByCpf(cpf);
+      const snapshot = await examService.getLatestByCpf(cpf, portariaToken);
       if (snapshot) {
         setExamData(snapshot);
         if (snapshot.status === 'blocked') {
@@ -184,7 +181,14 @@ export default function Portaria() {
         setResult('nao_encontrado');
       }
     } catch (err) {
-      console.error('Erro ao consultar CPF:', err);
+      if (err.message?.includes('Sessão')) {
+        sessionStorage.removeItem('portaria_token');
+        sessionStorage.removeItem('portaria_expires_at');
+        setPortariaToken('');
+        setAuthorized(false);
+        setPinError('Sessão expirada, informe a senha novamente');
+        return;
+      }
       setResult('erro');
     } finally {
       setChecking(false);
