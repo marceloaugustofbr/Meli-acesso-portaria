@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { authService } from '../services';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8787';
@@ -7,9 +7,9 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const fetchingRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     const unsubscribe = authService.onAuthChanged(async (firebaseUser) => {
       if (firebaseUser) {
         let admin = false;
@@ -20,40 +20,46 @@ export function useAuth() {
           // fallback silencioso
         }
 
+        if (cancelled) return;
+
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
         });
-        setIsAdmin(admin);
-        setLoading(false);
 
         // Confirma o isAdmin real no Firestore (via Worker)
-        if (!fetchingRef.current) {
-          fetchingRef.current = true;
-          try {
-            const token = await firebaseUser.getIdToken();
-            const resp = await fetch(`${API_BASE}/api/admin/me`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (resp.ok) {
-              const data = await resp.json();
-              setIsAdmin(data.isAdmin);
-            }
-          } catch {
-            // fallback silencioso para o valor do custom claim
-          } finally {
-            fetchingRef.current = false;
+        try {
+          const token = await firebaseUser.getIdToken();
+          const resp = await fetch(`${API_BASE}/api/admin/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            admin = data.isAdmin;
           }
+        } catch {
+          // fallback silencioso para o valor do custom claim
         }
-      } else {
+
+        if (!cancelled) {
+          setIsAdmin(admin);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
         setUser(null);
         setIsAdmin(false);
         setLoading(false);
       }
     });
 
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   return { user, loading, isAuthenticated: !!user, isAdmin };
