@@ -12,7 +12,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; media-src 'self' https://res.cloudinary.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://api.cloudinary.com https://api.ipify.org https://safeaccess-api.marcelo-a-freitasbr.workers.dev; img-src 'self' data: https://firebasestorage.googleapis.com https://*.googleapis.com https://res.cloudinary.com; frame-ancestors 'none'; manifest-src 'self'"
+            "value": "default-src 'self'; media-src 'self' https://res.cloudinary.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://*.googleapis.com https://*.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://api.cloudinary.com https://api.ipify.org https://safeaccess-api.marcelo-a-freitasbr.workers.dev; img-src 'self' data: https://firebasestorage.googleapis.com https://*.googleapis.com https://res.cloudinary.com; frame-ancestors 'none'; manifest-src 'self'"
           },
           {
             "key": "X-Frame-Options",
@@ -46,13 +46,6 @@
   },
   "storage": {
     "rules": "storage.rules"
-  },
-  "functions": {
-    "predeploy": [
-      "npm --prefix \"$RESOURCE_DIR\" run lint",
-      "npm --prefix \"$RESOURCE_DIR\" run build"
-    ],
-    "source": "functions"
   },
   "firestore": {
     "rules": "firestore.rules",

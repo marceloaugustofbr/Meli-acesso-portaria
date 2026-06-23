@@ -61,6 +61,35 @@ export const apiService = {
   },
 
   // ─── Exams ─────────────────────────────
+  async checkStatus(cpf) {
+    try {
+      return await request('/api/exams/check-status', {
+        method: 'POST',
+        body: { cpf },
+      });
+    } catch {
+      // Fallback: Worker ainda não atualizado com o novo endpoint.
+      // Usa o endpoint antigo com projeção segura no cliente.
+      // FIXME: Remover este fallback após deploy do Worker.
+      const exam = await request(`/api/exams/cpf/${cpf.replace(/\D/g, '')}`);
+      if (!exam) return { found: false };
+      return {
+        found: true,
+        name: exam.name,
+        cpf: exam.cpf,
+        city: exam.city,
+        operationType: exam.operationType,
+        status: exam.status,
+        percentage: exam.percentage,
+        score: exam.score,
+        correctAnswers: exam.correctAnswers,
+        wrongAnswers: exam.wrongAnswers,
+        createdAt: exam.createdAt,
+        attempts: exam.attempts,
+      };
+    }
+  },
+
   async createExam(examData) {
     return request('/api/exams', {
       method: 'POST',
@@ -162,6 +191,15 @@ export const apiService = {
     const token = await getIdToken();
     return request(`/api/admin/users/${uid}`, {
       method: 'DELETE',
+      token,
+    });
+  },
+
+  async updateUser(uid, data) {
+    const token = await getIdToken();
+    return request(`/api/admin/users/${uid}`, {
+      method: 'PUT',
+      body: data,
       token,
     });
   },

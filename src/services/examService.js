@@ -5,6 +5,10 @@ export const examService = {
     return apiService.createExam(examData);
   },
 
+  async checkStatus(cpf) {
+    return apiService.checkStatus(cpf);
+  },
+
   async getAggregation() {
     return apiService.getAggregation();
   },
@@ -35,9 +39,9 @@ export const examService = {
     return apiService.getExamByCpf(cpf, portariaToken);
   },
 
-  async countByCpf(cpf, portariaToken) {
-    const exam = await apiService.getExamByCpf(cpf, portariaToken);
-    return exam ? 1 : 0;
+  async countByCpf(cpf) {
+    const result = await apiService.checkStatus(cpf);
+    return result.found ? (result.attempts || 1) : 0;
   },
 
   async blockUser(cpf, blockData) {

@@ -42,12 +42,12 @@ export default function ExamCheck() {
     setResult(null);
     setExamData(null);
     try {
-      const snapshot = await examService.getLatestByCpf(cpf);
-      if (snapshot) {
-        setExamData(snapshot);
-        if (snapshot.status === 'approved') {
+      const statusResult = await examService.checkStatus(cpf);
+      if (statusResult.found) {
+        setExamData(statusResult);
+        if (statusResult.status === 'approved') {
           setResult('liberado');
-        } else if (snapshot.status === 'blocked') {
+        } else if (statusResult.status === 'blocked') {
           setResult('bloqueado');
         } else {
           setResult('reprovado');

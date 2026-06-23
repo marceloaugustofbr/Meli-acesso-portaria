@@ -51,6 +51,63 @@ function sanitize(str) {
   return (str || '').replace(/<[^>]*>/g, '').replace(/[<>"']/g, '').trim();
 }
 
+// Rate limiter simples (in-memory, por isolate do Worker)
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW = 60000;
+
+function checkRateLimit(ip, key, maxRequests) {
+  const now = Date.now();
+  const storeKey = `${ip}:${key}`;
+  const entry = rateLimitStore.get(storeKey);
+  if (!entry || now > entry.windowStart + RATE_LIMIT_WINDOW) {
+    rateLimitStore.set(storeKey, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= maxRequests) {
+    return false;
+  }
+  entry.count++;
+  return true;
+}
+
+// Projeções seguras dos dados do exame
+function projectPublicStatus(doc) {
+  if (!doc) return { found: false };
+  return {
+    found: true,
+    name: doc.name,
+    cpf: doc.cpf,
+    city: doc.city,
+    operationType: doc.operationType,
+    status: doc.status,
+    percentage: doc.percentage,
+    score: doc.score,
+    correctAnswers: doc.correctAnswers,
+    wrongAnswers: doc.wrongAnswers,
+    createdAt: doc.createdAt,
+    attempts: doc.attempts,
+  };
+}
+
+function projectPortariaView(doc) {
+  if (!doc) return null;
+  return {
+    id: doc.cpf ? extractCpfDigits(doc.cpf) : null,
+    name: doc.name,
+    cpf: doc.cpf,
+    city: doc.city,
+    operationType: doc.operationType,
+    percentage: doc.percentage,
+    score: doc.score,
+    status: doc.status,
+    createdAt: doc.createdAt,
+    attempts: doc.attempts,
+    blockReason: doc.blockReason,
+    blockedAt: doc.blockedAt,
+    blockedBy: doc.blockedBy,
+  };
+}
+
 function isValidCpf(cpf) {
   const digits = extractCpfDigits(cpf);
   return digits.length === 11 && /^\d{11}$/.test(digits);
@@ -134,7 +191,7 @@ async function handleRequest(request, env) {
 
     // ─── Questions ──────────────────────────
     if (path === '/api/questions' && method === 'GET') {
-      return await handleGetQuestions(db);
+      return await handleGetQuestions(request, db);
     }
     if (path === '/api/questions/seed' && method === 'POST') {
       return await handleSeedQuestions(request, db, env);
@@ -143,6 +200,9 @@ async function handleRequest(request, env) {
     // ─── Exams ──────────────────────────────
     if (path === '/api/exams' && method === 'POST') {
       return await handleCreateExam(request, db, env);
+    }
+    if (path === '/api/exams/check-status' && method === 'POST') {
+      return await handleCheckExamStatus(request, db, env);
     }
     if (path === '/api/exams' && method === 'GET') {
       return await handleListExams(request, db, env);
@@ -174,7 +234,7 @@ async function handleRequest(request, env) {
 
     // ─── Cloudinary ─────────────────────────
     if (path === '/api/cloudinary/sign' && method === 'POST') {
-      return await handleCloudinarySign(request, env);
+      return await handleCloudinarySign(request, env, db);
     }
 
     // ─── Admin / Me ─────────────────────────
@@ -192,6 +252,10 @@ async function handleRequest(request, env) {
     if (path.match(/^\/api\/admin\/users\/(.+)$/) && method === 'DELETE') {
       const uid = path.match(/^\/api\/admin\/users\/(.+)$/)[1];
       return await handleDeleteUser(request, uid, db, env);
+    }
+    if (path.match(/^\/api\/admin\/users\/(.+)$/) && method === 'PUT') {
+      const uid = path.match(/^\/api\/admin\/users\/(.+)$/)[1];
+      return await handleUpdateUser(request, uid, db, env);
     }
     return error('Rota não encontrada', 404);
   } catch (err) {
@@ -278,7 +342,11 @@ async function handleVerifyPin(request, db, env) {
 }
 
 // 2. Listar questões SEM correctAnswer (C-6)
-async function handleGetQuestions(db) {
+async function handleGetQuestions(request, db) {
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+  if (!checkRateLimit(ip, 'questions', 30)) {
+    return error('Muitas requisições. Tente novamente em 1 minuto.', 429);
+  }
   const docs = await db.listCollection('questions') || [];
   const questions = docs.map((doc) => ({
     id: doc.name.split('/').pop(),
@@ -330,7 +398,28 @@ async function handleSeedQuestions(request, db, env) {
   return json({ message: `${seedData.length} questões criadas` });
 }
 
-// 4. Criar exame com validação SERVER-SIDE (C-3, C-6)
+// 4. Consulta pública de status do exame (rate-limited, sem dados sensíveis)
+async function handleCheckExamStatus(request, db, env) {
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+  if (!checkRateLimit(ip, 'check-status', 10)) {
+    return error('Muitas requisições. Tente novamente em 1 minuto.', 429);
+  }
+
+  const { cpf } = await request.json();
+  if (!cpf || typeof cpf !== 'string') {
+    return error('CPF é obrigatório');
+  }
+
+  const digits = extractCpfDigits(cpf);
+  if (!isValidCpf(digits)) {
+    return error('CPF inválido');
+  }
+
+  const doc = await db.getDocument('latest_exams', digits);
+  return json(projectPublicStatus(doc));
+}
+
+// 5. Criar exame com validação SERVER-SIDE (C-3, C-6)
 async function handleCreateExam(request, db, env) {
   // Valida tamanho do payload
   const text = await request.text();
@@ -451,12 +540,38 @@ async function handleCreateExam(request, db, env) {
   return json({ id: cpfDigits, status: computedStatus, percentage, score: correctCount });
 }
 
-// 5. Buscar exame por CPF (público, portaria ou admin)
+// 5. Buscar exame por CPF (portaria via HMAC ou admin via Firebase)
 async function handleGetExamByCpf(request, cpf, db, env) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return error('Token de autenticação necessário', 401);
+  }
+  const token = authHeader.slice(7);
+
+  // Tenta admin auth primeiro (Firebase ID token)
+  try {
+    const decoded = await verifyFirebaseToken(token, env);
+    if (decoded) {
+      const userDoc = await db.getDocument('users', decoded.uid);
+      if (userDoc && userDoc.isAdmin === true) {
+        const digits = extractCpfDigits(cpf);
+        const doc = await db.getDocument('latest_exams', digits);
+        if (!doc) return json(null);
+        return json({ id: digits, ...doc });
+      }
+    }
+  } catch {} // eslint-disable-line no-empty
+
+  // Tenta HMAC session token (portaria)
+  const session = await verifySessionToken(token, env);
+  if (!session) {
+    return error('Token inválido ou expirado', 403);
+  }
+
   const digits = extractCpfDigits(cpf);
   const doc = await db.getDocument('latest_exams', digits);
   if (!doc) return json(null);
-  return json({ id: digits, ...doc });
+  return json(projectPortariaView(doc));
 }
 
 // 6. Buscar exame por UID (admin)
@@ -660,8 +775,9 @@ async function handleRecalculate(request, db, env) {
   return json({ total: docs.length, totalPeople: cpfSet.size });
 }
 
-// 12. Cloudinary signed upload (H-3)
-async function handleCloudinarySign(request, env) {
+// 12. Cloudinary signed upload (admin apenas)
+async function handleCloudinarySign(request, env, db) {
+  await requireAdmin(request, env, db);
   const body = await request.json();
   const timestamp = Math.round(Date.now() / 1000);
   const publicId = `signatures/${body.examId || 'unknown'}`;
@@ -742,12 +858,48 @@ async function handleCreateUser(request, db, env) {
 
 // 15. Deletar usuário + auth (C-7)
 async function handleDeleteUser(request, uid, db, env) {
-  await requireFullAdmin(request, env, db);
+  const decoded = await requireFullAdmin(request, env, db);
+
+  if (decoded.uid === uid) {
+    throw new AuthError('Você não pode excluir o próprio usuário');
+  }
 
   // Remove do Firestore
   await db.deleteDocument('users', uid);
 
   return json({ success: true, uid });
+}
+
+// 16. Atualizar usuário (admin)
+async function handleUpdateUser(request, uid, db, env) {
+  const decoded = await requireFullAdmin(request, env, db);
+
+  if (decoded.uid === uid) {
+    throw new AuthError('Você não pode alterar o próprio usuário por aqui');
+  }
+
+  const data = await request.json();
+  const updates = {};
+
+  if (data.cities !== undefined) {
+    updates.cities = Array.isArray(data.cities) ? data.cities : [];
+  }
+  if (data.isAdmin !== undefined) {
+    updates.isAdmin = !!data.isAdmin;
+  }
+  if (data.displayName !== undefined) {
+    updates.displayName = data.displayName;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return error('Nenhum campo para atualizar', 400);
+  }
+
+  await db.setDocument('users', uid, updates);
+
+  const updated = await db.getDocument('users', uid);
+
+  return json(updated);
 }
 
 // ─────────────────────────────────────────────

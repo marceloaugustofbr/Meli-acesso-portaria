@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
 import { shallow } from 'zustand/shallow';
 import { useExamStore } from '../../../store';
-import { examService, storageService } from '../../../services';
+import { examService } from '../../../services';
 import { formatCPF } from '../../../utils/cpf';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
@@ -71,15 +71,6 @@ export default function ExamResult() {
 
     (async () => {
       try {
-        let signatureUrl = null;
-        if (signature) {
-          try {
-            signatureUrl = await storageService.uploadSignature(signature, identification?.cpf);
-          } catch (err) {
-            console.warn('Erro ao enviar assinatura pro Cloudinary, salvando inline:', err);
-          }
-        }
-
         // O Worker calcula a nota server-side com as respostas corretas
         const examData = {
           name: identification?.name,
@@ -90,7 +81,7 @@ export default function ExamResult() {
           endTime,
           duration,
           answers,
-          signature: signatureUrl || signature,
+          signature: signature || null,
           signatureIp: signatureIp || null,
           signatureDate: new Date().toISOString(),
           signatureUserAgent: signatureUserAgent || null,
