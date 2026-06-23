@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import classNames from 'classnames';
 import { apiService } from '../../../services';
+import { useAuth } from '../../../hooks';
 import AdminLayout from '../../../components/ui/AdminLayout';
 import Loading from '../../../components/ui/Loading';
 
@@ -19,6 +20,7 @@ function toggleCity(selected, city) {
 }
 
 export default function AdminUsers() {
+  const { isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,6 +89,20 @@ export default function AdminUsers() {
     return (
       <AdminLayout>
         <Loading fullPage text="Carregando usuários..." />
+      </AdminLayout>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <AdminLayout>
+        <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+          <span className="icon is-large has-text-grey" style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+            <i className="fas fa-lock" />
+          </span>
+          <p className="title is-5 has-text-grey">Acesso restrito</p>
+          <p className="has-text-grey">Você não tem permissão para gerenciar usuários.</p>
+        </div>
       </AdminLayout>
     );
   }

@@ -177,6 +177,11 @@ async function handleRequest(request, env) {
       return await handleCloudinarySign(request, env);
     }
 
+    // ─── Admin / Me ─────────────────────────
+    if (path === '/api/admin/me' && method === 'GET') {
+      return await handleAdminMe(request, env, db);
+    }
+
     // ─── Admin / Users ──────────────────────
     if (path === '/api/admin/users' && method === 'GET') {
       return await handleListUsers(request, db, env);
@@ -212,18 +217,10 @@ async function requireAdmin(request, env, db) {
     throw new AuthError('Token inválido');
   }
 
-  if (decoded.isAdmin) return decoded;
-
   // Busca documento do usuário no Firestore
   let userDoc = await db.getDocument('users', decoded.uid);
 
-  if (userDoc && userDoc.isAdmin) {
-    decoded.isAdmin = true;
-    decoded.cities = userDoc.cities || [];
-    return decoded;
-  }
-
-  // Se o documento não existe, verifica se users está vazio (auto-bootstrap)
+  // Auto-bootstrap: se não existe documento e users está vazio, cria admin
   if (!userDoc) {
     const existingUsers = await db.listCollection('users');
     if (!existingUsers || existingUsers.length === 0) {
@@ -241,7 +238,17 @@ async function requireAdmin(request, env, db) {
     throw new AuthError('Usuário não encontrado no Firestore');
   }
 
-  throw new AuthError('Acesso negado: apenas administradores');
+  decoded.isAdmin = userDoc.isAdmin === true;
+  decoded.cities = userDoc.cities || [];
+  return decoded;
+}
+
+async function requireFullAdmin(request, env, db) {
+  const decoded = await requireAdmin(request, env, db);
+  if (!decoded.isAdmin) {
+    throw new AuthError('Acesso negado: apenas administradores');
+  }
+  return decoded;
 }
 
 // ─────────────────────────────────────────────
@@ -284,7 +291,7 @@ async function handleGetQuestions(db) {
 
 // 3. Seed de questões (admin apenas)
 async function handleSeedQuestions(request, db, env) {
-  await requireAdmin(request, env, db);
+  await requireFullAdmin(request, env, db);
   const existing = await db.listCollection('questions');
   if (existing.length > 0) {
     return json({ message: 'Questões já existem' });
@@ -678,16 +685,22 @@ async function handleCloudinarySign(request, env) {
   });
 }
 
+// 12b. Retorna dados do admin autenticado
+async function handleAdminMe(request, env, db) {
+  const decoded = await requireAdmin(request, env, db);
+  return json({ isAdmin: decoded.isAdmin, cities: decoded.cities || [] });
+}
+
 // 13. Listar usuários (admin)
 async function handleListUsers(request, db, env) {
-  await requireAdmin(request, env, db);
+  await requireFullAdmin(request, env, db);
   const docs = await db.listCollectionObjects('users');
   return json(docs);
 }
 
 // 14. Criar usuário admin (C-7)
 async function handleCreateUser(request, db, env) {
-  await requireAdmin(request, env, db);
+  await requireFullAdmin(request, env, db);
   const data = await request.json();
 
   // Usa Firebase Auth REST API para criar usuário
@@ -729,7 +742,7 @@ async function handleCreateUser(request, db, env) {
 
 // 15. Deletar usuário + auth (C-7)
 async function handleDeleteUser(request, uid, db, env) {
-  await requireAdmin(request, env, db);
+  await requireFullAdmin(request, env, db);
 
   // Remove do Firestore
   await db.deleteDocument('users', uid);

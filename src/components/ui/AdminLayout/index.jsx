@@ -3,17 +3,20 @@ import PropTypes from 'prop-types';
 import classNames from 'classnames';
 import { Link, useHistory, useLocation } from 'react-router-dom';
 import { authService } from '../../../services';
+import { useAuth } from '../../../hooks';
 import ROUTES from '../../../constants/routes';
 
-const NAV_ITEMS = [
+const BASE_NAV = [
   { label: 'Dashboard', path: ROUTES.ADMIN_DASHBOARD },
-  { label: 'Usuários', path: ROUTES.ADMIN_USERS },
+  { label: 'Usuários', path: ROUTES.ADMIN_USERS, requireAdmin: true },
 ];
 
 export default function AdminLayout({ children }) {
+  const { isAdmin } = useAuth();
   const history = useHistory();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const navItems = BASE_NAV.filter((item) => !item.requireAdmin || isAdmin);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -43,7 +46,7 @@ export default function AdminLayout({ children }) {
         </div>
         <div className={classNames('navbar-menu', { 'is-active': menuOpen })}>
           <div className="navbar-start">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <Link
                 key={item.path}
                 className={classNames('navbar-item', { 'is-active': location.pathname === item.path })}
