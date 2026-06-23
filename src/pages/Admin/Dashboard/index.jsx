@@ -250,7 +250,11 @@ export default function AdminDashboard() {
               />
               <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
                 <option value="">Todas cidades</option>
-                {['Avaré', 'Barretos', 'Bauru'].map((c) => <option key={c} value={c}>{c}</option>)}
+                {[
+                  'Araçatuba', 'Avaré', 'Barretos', 'Bauru', 'Cravinhos',
+                  'Franca', 'Jales', 'Piracicaba', 'Presidente Prudente',
+                  'Ribeirão Preto', 'S.J. Rio Preto', 'São Carlos',
+                ].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                 <option value="">Todos tipos</option>

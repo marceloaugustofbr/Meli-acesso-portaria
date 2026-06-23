@@ -219,6 +219,7 @@ async function requireAdmin(request, env, db) {
 
   if (userDoc && userDoc.isAdmin) {
     decoded.isAdmin = true;
+    decoded.cities = userDoc.cities || [];
     return decoded;
   }
 
@@ -230,9 +231,11 @@ async function requireAdmin(request, env, db) {
         email: decoded.email,
         displayName: decoded.name || decoded.email,
         isAdmin: true,
+        cities: [],
         createdAt: new Date().toISOString(),
       });
       decoded.isAdmin = true;
+      decoded.cities = [];
       return decoded;
     }
     throw new AuthError('Usuário não encontrado no Firestore');
@@ -451,29 +454,44 @@ async function handleGetExamByCpf(request, cpf, db, env) {
 
 // 6. Buscar exame por UID (admin)
 async function handleGetExamByUid(request, uid, db, env) {
-  await requireAdmin(request, env, db);
+  const admin = await requireAdmin(request, env, db);
   const lookup = await db.getDocument('exam_uids', uid);
   if (!lookup) return json(null);
-  return handleGetExamByCpf(request, lookup.cpf, db, env);
+  const digits = extractCpfDigits(lookup.cpf);
+  const doc = await db.getDocument('latest_exams', digits);
+  if (!doc) return json(null);
+  const adminCities = admin.cities || [];
+  if (adminCities.length > 0 && !adminCities.includes(doc.city)) {
+    return json(null, 403);
+  }
+  return json({ id: digits, ...doc });
 }
 
 // 7. Listar exames com paginação e filtros (admin)
 async function handleListExams(request, db, env) {
-  await requireAdmin(request, env, db);
+  const admin = await requireAdmin(request, env, db);
   const url = new URL(request.url);
   const params = url.searchParams;
 
   let allDocs = await db.listCollectionObjects('latest_exams');
 
+  // Filtro automático por cidades que o admin gerencia
+  const adminCities = admin.cities || [];
+  const requestedCity = params.get('city');
+  if (adminCities.length > 0) {
+    allDocs = allDocs.filter((d) => adminCities.includes(d.city));
+  }
+  if (requestedCity && adminCities.includes(requestedCity)) {
+    allDocs = allDocs.filter((d) => d.city === requestedCity);
+  } else if (requestedCity) {
+    allDocs = allDocs.filter((d) => d.city === requestedCity);
+  }
   if (params.get('status')) {
     allDocs = allDocs.filter((d) => d.status === params.get('status'));
   }
   if (params.get('name')) {
     const nameFilter = params.get('name').toUpperCase();
     allDocs = allDocs.filter((d) => (d.name || '').toUpperCase().includes(nameFilter));
-  }
-  if (params.get('city')) {
-    allDocs = allDocs.filter((d) => d.city === params.get('city'));
   }
   if (params.get('operationType')) {
     allDocs = allDocs.filter((d) => d.operationType === params.get('operationType'));
@@ -535,7 +553,41 @@ async function handleUnblockUser(request, cpf, db, env) {
 
 // 10. Agregação
 async function handleGetAggregation(request, db, env) {
-  await requireAdmin(request, env, db);
+  const admin = await requireAdmin(request, env, db);
+  const adminCities = admin.cities || [];
+
+  // Se admin tem restrição de cidades, calcula on-the-fly
+  if (adminCities.length > 0) {
+    const allDocs = await db.listCollectionObjects('latest_exams');
+    const filtered = allDocs.filter((d) => adminCities.includes(d.city));
+    const monthlyCounts = {};
+    const typeCounts = {};
+    const cpfSet = new Set();
+    let approvedCount = 0;
+    let reprovedCount = 0;
+
+    filtered.forEach((d) => {
+      const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
+      monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
+      const type = d.operationType || 'unknown';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+      cpfSet.add(d.cpf);
+      if (d.status === 'approved') approvedCount += 1;
+      else if (d.status === 'reproved') reprovedCount += 1;
+    });
+
+    const totalPeople = cpfSet.size;
+    return json({
+      total: filtered.length,
+      totalPeople,
+      approvedPeople: approvedCount,
+      reprovedPeople: reprovedCount,
+      monthlyCounts,
+      typeCounts,
+      approvalRate: totalPeople > 0 ? Math.round((approvedCount / totalPeople) * 100) : 0,
+    });
+  }
+
   const doc = await db.getDocument('aggregations', 'examStats');
   if (!doc) {
     return json({
@@ -563,16 +615,21 @@ async function handleGetAggregation(request, db, env) {
 
 // 11. Recalcular agregação (admin)
 async function handleRecalculate(request, db, env) {
-  await requireAdmin(request, env, db);
+  const admin = await requireAdmin(request, env, db);
 
   const allDocs = await db.listCollectionObjects('latest_exams');
+  const adminCities = admin.cities || [];
+  const docs = adminCities.length > 0
+    ? allDocs.filter((d) => adminCities.includes(d.city))
+    : allDocs;
+
   const monthlyCounts = {};
   const typeCounts = {};
   const cpfSet = new Set();
   let approvedCount = 0;
   let reprovedCount = 0;
 
-  allDocs.forEach((d) => {
+  docs.forEach((d) => {
     const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
     monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
 
@@ -585,7 +642,7 @@ async function handleRecalculate(request, db, env) {
   });
 
   await db.setDocument('aggregations', 'examStats', {
-    total: allDocs.length,
+    total: docs.length,
     totalPeople: cpfSet.size,
     approvedPeople: approvedCount,
     reprovedPeople: reprovedCount,
@@ -593,7 +650,7 @@ async function handleRecalculate(request, db, env) {
     typeCounts,
   });
 
-  return json({ total: allDocs.length, totalPeople: cpfSet.size });
+  return json({ total: docs.length, totalPeople: cpfSet.size });
 }
 
 // 12. Cloudinary signed upload (H-3)

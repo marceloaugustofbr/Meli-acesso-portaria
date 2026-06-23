@@ -4,7 +4,11 @@ import { apiService } from '../../../services';
 import AdminLayout from '../../../components/ui/AdminLayout';
 import Loading from '../../../components/ui/Loading';
 
-const CITIES = ['Avaré', 'Barretos', 'Bauru'];
+const CITIES = [
+  'Araçatuba', 'Avaré', 'Barretos', 'Bauru', 'Cravinhos',
+  'Franca', 'Jales', 'Piracicaba', 'Presidente Prudente',
+  'Ribeirão Preto', 'S.J. Rio Preto', 'São Carlos',
+];
 
 const defaultForm = { email: '', name: '', password: '', isAdmin: true, cities: [] };
 
