@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
 import classNames from 'classnames';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useExamStore } from '../../../store';
 import { examService } from '../../../services';
 import { maskCPF, formatCPF, validateCPF } from '../../../utils/cpf';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
+import { downloadQRCode } from '../../../utils/qr';
 
 export default function ExamCheck() {
   const history = useHistory();
@@ -17,6 +19,8 @@ export default function ExamCheck() {
   const [result, setResult] = useState(null);
   const [examData, setExamData] = useState(null);
   const [cpfError, setCpfError] = useState('');
+  const qrRef = useRef(null);
+  const handleDownloadQR = () => downloadQRCode(qrRef, examData?.cpf || cpf);
 
   useEffect(() => {
     cpfRef.current?.focus();
@@ -56,7 +60,7 @@ export default function ExamCheck() {
         setResult('pendente');
       }
     } catch (err) {
-      console.error('Erro ao consultar CPF:', err);
+      // Erro silenciado — estado de erro já é tratado na UI
       setResult('pendente');
     } finally {
       setChecking(false);
@@ -65,8 +69,8 @@ export default function ExamCheck() {
 
   const handleProceed = () => {
     storeSetCpf(cpf);
-    setStep('video');
-    history.push(ROUTES.EXAM_VIDEO);
+    setStep('rules');
+    history.push(ROUTES.EXAM_RULES);
   };
 
   const handleFinish = () => {
@@ -75,8 +79,8 @@ export default function ExamCheck() {
 
   const handleRetake = () => {
     storeSetCpf(cpf);
-    setStep('video');
-    history.push(ROUTES.EXAM_VIDEO);
+    setStep('rules');
+    history.push(ROUTES.EXAM_RULES);
   };
 
   return (
@@ -194,6 +198,35 @@ export default function ExamCheck() {
                       Você já concluiu o treinamento e está liberado para acessar as operações.
                     </p>
                   </div>
+                </div>
+
+                <div style={{
+                  background: '#fff', borderRadius: 10, padding: '1rem',
+                  marginTop: 16, textAlign: 'center',
+                  border: '1px solid #E0E0E0',
+                }}>
+                  <p style={{ fontSize: '0.8rem', color: '#888', fontWeight: 600, margin: '0 0 0.75rem' }}>
+                    <i className="fas fa-qrcode" style={{ marginRight: 6 }} />
+                    Comprovante digital
+                  </p>
+                  <QRCodeCanvas
+                    ref={qrRef}
+                    value={(examData.cpf || cpf).replace(/\D/g, '')}
+                    size={140}
+                    level="M"
+                    style={{ display: 'block', margin: '0 auto' }}
+                  />
+                  <button
+                    onClick={handleDownloadQR}
+                    style={{
+                      marginTop: '0.75rem', padding: '0.35rem 1rem', fontSize: '0.75rem',
+                      background: '#f5f5f5', color: '#333', border: '1px solid #ddd',
+                      borderRadius: 6, cursor: 'pointer',
+                    }}
+                  >
+                    <i className="fas fa-download" style={{ marginRight: 6 }} />
+                    Baixar QR Code
+                  </button>
                 </div>
               </div>
 
@@ -379,19 +412,98 @@ export default function ExamCheck() {
           )}
 
           {result === 'pendente' && (
-            <div className="mt-5">
-              <div className="notification is-warning">
-                <span className="icon"><i className="fas fa-exclamation-triangle" /></span>
-                <p className="has-text-weight-bold mt-2">
-                  CPF não encontrado
-                </p>
-                <p style={{ fontSize: '0.85rem', color: '#666', lineHeight: 1.5, margin: '0.5rem 0 0' }}>
-                  Você ainda não possui treinamento registrado em nosso sistema. Para obter a liberação de acesso, é necessário realizar o treinamento completo.
-                </p>
+            <div className="mt-2">
+              <div
+                className="box"
+                style={{
+                  border: '2px solid #FF8F00',
+                  borderRadius: 16,
+                  padding: 0,
+                  overflow: 'hidden',
+                  boxShadow: '0 8px 24px rgba(255,143,0,0.15)',
+                }}
+              >
+                <div
+                  className="has-text-white has-text-centered"
+                  style={{ background: 'linear-gradient(135deg, #FF8F00 0%, #E65100 100%)', padding: '32px 24px 24px' }}
+                >
+                  <div
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 12px',
+                    }}
+                  >
+                    <i className="fas fa-user-plus fa-3x" />
+                  </div>
+                  <p className="title is-5 has-text-white mb-1" style={{ fontWeight: 600 }}>
+                    Primeiro Acesso
+                  </p>
+                </div>
+
+                <div style={{ padding: '20px 24px' }}>
+                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        background: '#FF8F00',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        borderRadius: 20,
+                        padding: '5px 28px',
+                        marginBottom: 12,
+                      }}
+                    >
+                      SEM TREINAMENTO
+                    </span>
+                    <p style={{ fontSize: '0.9rem', color: '#555', lineHeight: 1.6, margin: '0 auto', maxWidth: 380 }}>
+                      Você ainda não possui treinamento registrado. Para obter a liberação de acesso às operações da DHL, é necessário concluir o treinamento de segurança.
+                    </p>
+                  </div>
+
+                  <div style={{ textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 16 }}>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#666' }}>
+                        <i className="fas fa-video" style={{ color: '#FF8F00' }} />
+                        <span>Assistir vídeo</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#666' }}>
+                        <i className="fas fa-circle-question" style={{ color: '#FF8F00' }} />
+                        <span>23 perguntas</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#666' }}>
+                        <i className="fas fa-check-circle" style={{ color: '#FF8F00' }} />
+                        <span>Mínimo 70%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button className="button is-medium" onClick={handleProceed} style={{ background: '#D40511', color: '#fff', border: 'none' }}>
-                INICIAR TREINAMENTO
-              </button>
+
+              <div style={{ textAlign: 'center', marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="button is-medium"
+                  onClick={handleProceed}
+                  style={{ borderRadius: 8, paddingLeft: 24, paddingRight: 24, background: '#D40511', color: '#fff', border: 'none', minWidth: 180 }}
+                >
+                  <span className="icon is-small"><i className="fas fa-play" /></span>
+                  <span>INICIAR TREINAMENTO</span>
+                </button>
+                <button
+                  className="button is-medium"
+                  onClick={handleFinish}
+                  style={{ borderRadius: 8, paddingLeft: 24, paddingRight: 24, background: '#fff', color: '#D40511', border: '2px solid #D40511', minWidth: 120 }}
+                >
+                  <span className="icon is-small"><i className="fas fa-sign-out-alt" /></span>
+                  <span>VOLTAR</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

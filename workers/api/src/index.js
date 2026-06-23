@@ -110,7 +110,39 @@ function projectPortariaView(doc) {
 
 function isValidCpf(cpf) {
   const digits = extractCpfDigits(cpf);
-  return digits.length === 11 && /^\d{11}$/.test(digits);
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+
+  // Valida primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10) remainder = 0;
+  if (remainder !== parseInt(digits[9])) return false;
+
+  // Valida segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i);
+  remainder = (sum * 10) % 11;
+  if (remainder === 10) remainder = 0;
+  if (remainder !== parseInt(digits[10])) return false;
+
+  return true;
+}
+
+// Hash de PIN com SHA-256 + salt (timing-safe)
+async function hashPin(pin, salt) {
+  const data = new TextEncoder().encode(`${salt}:${pin}`);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 // Token de sessão com HMAC-SHA256 (CR-1)
@@ -135,6 +167,60 @@ function _sessionSecret(env) {
     throw new Error('SESSION_SECRET não configurado no Worker');
   }
   return secret;
+}
+
+// Token de acesso Admin via Service Account (para operações REST do Firebase Auth)
+const adminTokenCache = { token: null, expiresAt: 0 };
+
+async function getAdminAccessToken(env) {
+  if (adminTokenCache.token && Date.now() < adminTokenCache.expiresAt) {
+    return adminTokenCache.token;
+  }
+  const email = env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  if (!email || !privateKey) {
+    throw new Error('FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY necessários');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: email,
+    sub: email,
+    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+    iat: now,
+    exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/identity.platform',
+  };
+
+  const h = _b64url(JSON.stringify(header));
+  const p = _b64url(JSON.stringify(payload));
+  const signingInput = `${h}.${p}`;
+
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    new TextEncoder().encode(privateKey),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(signingInput));
+  const s = _b64url(String.fromCharCode(...new Uint8Array(sig)));
+  const jwt = `${h}.${p}.${s}`;
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+  const data = await res.json();
+  if (!data.access_token) {
+    throw new Error('Falha ao obter access token admin');
+  }
+
+  adminTokenCache.token = data.access_token;
+  adminTokenCache.expiresAt = Date.now() + (data.expires_in - 60) * 1000;
+  return data.access_token;
 }
 
 async function generateSessionToken(env) {
@@ -188,6 +274,9 @@ async function handleRequest(request, env) {
     if (path === '/api/portaria/verify-pin' && method === 'POST') {
       return await handleVerifyPin(request, db, env);
     }
+    if (path === '/api/admin/portaria/pin' && method === 'POST') {
+      return await handleSetPortariaPin(request, db, env);
+    }
 
     // ─── Questions ──────────────────────────
     if (path === '/api/questions' && method === 'GET') {
@@ -206,6 +295,9 @@ async function handleRequest(request, env) {
     }
     if (path === '/api/exams' && method === 'GET') {
       return await handleListExams(request, db, env);
+    }
+    if (path === '/api/exams/export' && method === 'GET') {
+      return await handleExportExams(request, db, env);
     }
     if (path.match(/^\/api\/exams\/(\d{11})\/block$/) && method === 'POST') {
       const cpf = path.match(/^\/api\/exams\/(\d{11})\/block$/)[1];
@@ -282,23 +374,8 @@ async function requireAdmin(request, env, db) {
   }
 
   // Busca documento do usuário no Firestore
-  let userDoc = await db.getDocument('users', decoded.uid);
-
-  // Auto-bootstrap: se não existe documento e users está vazio, cria admin
+  const userDoc = await db.getDocument('users', decoded.uid);
   if (!userDoc) {
-    const existingUsers = await db.listCollection('users');
-    if (!existingUsers || existingUsers.length === 0) {
-      await db.setDocument('users', decoded.uid, {
-        email: decoded.email,
-        displayName: decoded.name || decoded.email,
-        isAdmin: true,
-        cities: [],
-        createdAt: new Date().toISOString(),
-      });
-      decoded.isAdmin = true;
-      decoded.cities = [];
-      return decoded;
-    }
     throw new AuthError('Usuário não encontrado no Firestore');
   }
 
@@ -319,8 +396,13 @@ async function requireFullAdmin(request, env, db) {
 //  Handlers
 // ─────────────────────────────────────────────
 
-// 1. Verificar PIN da portaria (C-1)
+// 1. Verificar PIN da portaria (C-1) — com hash + rate limit server-side
 async function handleVerifyPin(request, db, env) {
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+  if (!checkRateLimit(ip, 'verify-pin', 5)) {
+    return error('Muitas tentativas. Aguarde 1 minuto.', 429);
+  }
+
   const { pin } = await request.json();
   if (!pin || typeof pin !== 'string') {
     return error('PIN é obrigatório');
@@ -331,14 +413,53 @@ async function handleVerifyPin(request, db, env) {
     return error('PIN não configurado', 500);
   }
 
+  // Suporta tanto hash quanto texto plano (migração)
   const storedPin = doc.pin;
-  if (pin !== storedPin) {
+  const storedHash = doc.pinHash;
+  const salt = doc.pinSalt || 'safeaccess-default-salt';
+
+  let pinValid = false;
+  if (storedHash) {
+    // Novo modo: comparação por hash
+    const inputHash = await hashPin(pin, salt);
+    pinValid = timingSafeEqual(inputHash, storedHash);
+  } else if (storedPin) {
+    // Modo legado: texto plano (será migrado)
+    pinValid = timingSafeEqual(pin, storedPin);
+  }
+
+  if (!pinValid) {
     return error('PIN incorreto', 401);
   }
 
   const sessionToken = await generateSessionToken(env);
 
   return json({ success: true, token: sessionToken });
+}
+
+// 1b. Configurar PIN da portaria com hash (admin apenas)
+async function handleSetPortariaPin(request, db, env) {
+  await requireFullAdmin(request, env, db);
+
+  const { pin } = await request.json();
+  if (!pin || typeof pin !== 'string' || pin.length < 4) {
+    return error('PIN deve ter pelo menos 4 caracteres');
+  }
+
+  // Gera salt aleatório e hash do PIN
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const salt = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  const pinHash = await hashPin(pin, salt);
+
+  // Salva hash + salt no Firestore (remove texto plano antigo)
+  await db.setDocument('config', 'portaria', {
+    pinHash,
+    pinSalt: salt,
+    pin: null, // Remove texto plano se existir
+    updatedAt: new Date().toISOString(),
+  });
+
+  return json({ success: true, message: 'PIN atualizado com sucesso' });
 }
 
 // 2. Listar questões SEM correctAnswer (C-6)
@@ -446,6 +567,19 @@ async function handleCreateExam(request, db, env) {
   }
   if (data.answers.length > 30) {
     return error('Máximo de 30 respostas');
+  }
+  // Valida estrutura de cada resposta
+  for (let i = 0; i < data.answers.length; i++) {
+    const a = data.answers[i];
+    if (!a || typeof a !== 'object') {
+      return error(`Resposta ${i + 1}: formato inválido`);
+    }
+    if (typeof a.questionId !== 'string' || !a.questionId.trim()) {
+      return error(`Resposta ${i + 1}: questionId obrigatório`);
+    }
+    if (typeof a.selectedAnswer !== 'string') {
+      return error(`Resposta ${i + 1}: selectedAnswer obrigatório`);
+    }
   }
 
   const cpfDigits = extractCpfDigits(data.cpf);
@@ -636,6 +770,44 @@ async function handleListExams(request, db, env) {
     total: allDocs.length,
     page,
   });
+}
+
+// 7b. Exportar exames (admin) - sem paginação
+async function handleExportExams(request, db, env) {
+  const admin = await requireAdmin(request, env, db);
+  const url = new URL(request.url);
+  const params = url.searchParams;
+
+  let allDocs = await db.listCollectionObjects('latest_exams');
+
+  const adminCities = admin.cities || [];
+  const requestedCity = params.get('city');
+  if (adminCities.length > 0) {
+    allDocs = allDocs.filter((d) => adminCities.includes(d.city));
+  }
+  if (requestedCity && adminCities.includes(requestedCity)) {
+    allDocs = allDocs.filter((d) => d.city === requestedCity);
+  } else if (requestedCity) {
+    allDocs = allDocs.filter((d) => d.city === requestedCity);
+  }
+  if (params.get('status')) {
+    allDocs = allDocs.filter((d) => d.status === params.get('status'));
+  }
+  if (params.get('name')) {
+    const nameFilter = params.get('name').toUpperCase();
+    allDocs = allDocs.filter((d) => (d.name || '').toUpperCase().includes(nameFilter));
+  }
+  if (params.get('operationType')) {
+    allDocs = allDocs.filter((d) => d.operationType === params.get('operationType'));
+  }
+
+  allDocs.sort((a, b) => {
+    const aTime = a.createdAt || '0';
+    const bTime = b.createdAt || '0';
+    return bTime.localeCompare(aTime);
+  });
+
+  return json({ data: allDocs, total: allDocs.length });
 }
 
 // 8. Bloquear usuário (requer admin) (C-5)
@@ -862,6 +1034,22 @@ async function handleDeleteUser(request, uid, db, env) {
 
   if (decoded.uid === uid) {
     throw new AuthError('Você não pode excluir o próprio usuário');
+  }
+
+  // Remove do Firebase Auth via Admin API
+  if (env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY) {
+    try {
+      const accessToken = await getAdminAccessToken(env);
+      await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts/${uid}?key=${env.FIREBASE_API_KEY}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+    } catch (err) {
+      console.error('Erro ao deletar do Firebase Auth:', err.message);
+    }
   }
 
   // Remove do Firestore

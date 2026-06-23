@@ -1,12 +1,14 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useHistory } from 'react-router-dom';
 import { shallow } from 'zustand/shallow';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useExamStore } from '../../../store';
 import { examService } from '../../../services';
 import { formatCPF } from '../../../utils/cpf';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
 import Loading from '../../../components/ui/Loading';
+import { downloadQRCode } from '../../../utils/qr';
 
 function AnimatedNumber({ value, duration = 800 }) {
   const [display, setDisplay] = useState(0);
@@ -47,6 +49,11 @@ export default function ExamResult() {
   const [attemptCount, setAttemptCount] = useState(0);
   const [result, setResult] = useState(null);
   const savingRef = useRef(false);
+  const qrRef = useRef(null);
+
+  const handleDownloadQR = useCallback(() => {
+    downloadQRCode(qrRef, identification?.cpf);
+  }, [identification]);
 
   const endTime = useMemo(() => new Date().toISOString(), []);
 
@@ -98,7 +105,7 @@ export default function ExamResult() {
           setSaving(false);
         }
       } catch (err) {
-        console.error('Erro ao salvar exame:', err);
+        // Erro silenciado — estado de erro já é tratado na UI
         if (mounted) {
           setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
           setSaving(false);
@@ -156,19 +163,49 @@ export default function ExamResult() {
         </p>
 
         {finalStatus === 'approved' && (
-          <div style={{
-            background: '#E3F2FD', borderRadius: 10, padding: '1rem 1.25rem',
-            marginBottom: '1.5rem', textAlign: 'left',
-          }}>
-            <p style={{ fontSize: '0.85rem', color: '#1565C0', fontWeight: 600, margin: '0 0 0.35rem' }}>
-              <i className="fas fa-info-circle" style={{ marginRight: 6 }} />
-              Próximos passos
-            </p>
-            <p style={{ fontSize: '0.82rem', color: '#1E3A5F', margin: 0, lineHeight: 1.5 }}>
-              Você está apto a acessar a operação. Dirija-se à <strong>portaria interna</strong> e apresente seu
-              <strong> CPF</strong> para ser liberado.
-            </p>
-          </div>
+          <>
+            <div style={{
+              background: '#E3F2FD', borderRadius: 10, padding: '1rem 1.25rem',
+              marginBottom: '1rem', textAlign: 'left',
+            }}>
+              <p style={{ fontSize: '0.85rem', color: '#1565C0', fontWeight: 600, margin: '0 0 0.35rem' }}>
+                <i className="fas fa-info-circle" style={{ marginRight: 6 }} />
+                Próximos passos
+              </p>
+              <p style={{ fontSize: '0.82rem', color: '#1E3A5F', margin: 0, lineHeight: 1.5 }}>
+                Você está apto a acessar a operação. Dirija-se à <strong>portaria interna</strong> e apresente seu
+                <strong> CPF</strong> para ser liberado.
+              </p>
+            </div>
+            <div style={{
+              background: '#fff', borderRadius: 10, padding: '1rem',
+              marginBottom: '1.5rem', textAlign: 'center',
+              border: '1px solid #E0E0E0',
+            }}>
+              <p style={{ fontSize: '0.8rem', color: '#888', fontWeight: 600, margin: '0 0 0.75rem' }}>
+                <i className="fas fa-qrcode" style={{ marginRight: 6 }} />
+                Comprovante digital
+              </p>
+              <QRCodeCanvas
+                ref={qrRef}
+                value={identification?.cpf?.replace(/\D/g, '') || ''}
+                size={140}
+                level="M"
+                style={{ display: 'block', margin: '0 auto' }}
+              />
+              <button
+                onClick={handleDownloadQR}
+                style={{
+                  marginTop: '0.75rem', padding: '0.35rem 1rem', fontSize: '0.75rem',
+                  background: '#f5f5f5', color: '#333', border: '1px solid #ddd',
+                  borderRadius: 6, cursor: 'pointer',
+                }}
+              >
+                <i className="fas fa-download" style={{ marginRight: 6 }} />
+                Baixar QR Code
+              </button>
+            </div>
+          </>
         )}
 
         <div style={{

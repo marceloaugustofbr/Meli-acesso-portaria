@@ -8,49 +8,121 @@ export default function ExamIntro() {
   const history = useHistory();
   const setStep = useExamStore((s) => s.setStep);
 
-  const handleStart = () => {
+  const handleCheckResult = () => {
     setStep('check');
     history.push(ROUTES.EXAM_CHECK);
+  };
+
+  const handleStartExam = () => {
+    setStep('check');
+    history.push(ROUTES.EXAM_CHECK);
+  };
+
+  const cardStyle = {
+    flex: 1,
+    minWidth: 220,
+    background: '#fff',
+    border: '2px solid #eee',
+    borderRadius: 16,
+    padding: '2rem 1.5rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    textAlign: 'center',
   };
 
   return (
     <ExamLayout>
       <div className="stagger">
-        <div className="has-text-centered">
+        <div className="has-text-centered" style={{ marginBottom: '2rem' }}>
           <div style={{ margin: '0 auto 1.25rem', textAlign: 'center' }}>
             <img src="/dhl-logov2.png" alt="DHL" style={{ width: 144 }} />
           </div>
           <h1 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#D40511', margin: '0 0 0.5rem' }}>
             Treinamento de Segurança Obrigatório
           </h1>
-          <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6, maxWidth: 480, margin: '0 auto 1.5rem' }}>
+          <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6, maxWidth: 480, margin: '0 auto' }}>
             Para ter acesso às operações da DHL, é obrigatório a realização do treinamento de segurança.
-            <br /><br />
-            Somente após a conclusão e aprovação, você será <strong>liberado na portaria</strong> para acessar as operações.
           </p>
         </div>
 
-        <div style={{
-          background: '#F5F5F5',
-          borderRadius: 12,
-          padding: '1.25rem 1.5rem',
-          marginBottom: '1.5rem',
-        }}>
-          <p style={{ fontWeight: 700, fontSize: '0.85rem', margin: '0 0 0.75rem', color: '#444' }}>Etapas do Treinamento:</p>
-          <ul style={{ fontSize: '0.85rem', color: '#555', lineHeight: 1.8, margin: 0, paddingLeft: '1.25rem' }}>
-            <li>Assista ao vídeo completo sobre segurança</li>
-            <li>Responda <strong>23 perguntas</strong> sobre o conteúdo</li>
-            <li>Aprovação com no mínimo <strong style={{ color: '#D40511' }}>70%</strong> de acertos (16/23)</li>
-            <li>Leia e concorde com os <strong>Termos de Segurança</strong></li>
-            <li>Assine digitalmente ao final</li>
-          </ul>
-        </div>
+        <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div
+            className="ripple-btn"
+            style={cardStyle}
+            onClick={handleCheckResult}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#D40511';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(212,5,17,0.12)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#eee';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #28A745 0%, #1e7e34 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem',
+                fontSize: '1.25rem',
+              }}
+            >
+              <i className="fas fa-clipboard-check" />
+            </div>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#333', margin: '0 0 0.5rem' }}>
+              Consultar Resultado
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: '#666', lineHeight: 1.5, margin: 0 }}>
+              Já fez o treinamento? Confira seu status aqui.
+            </p>
+          </div>
 
-        <div className="has-text-centered">
-          <button className="btn-dhl ripple-btn" onClick={handleStart} style={{ padding: '0.85rem 2.5rem', fontSize: '1rem' }}>
-            <i className="fas fa-play" style={{ fontSize: '0.85rem' }} />
-            INICIAR
-          </button>
+          <div
+            className="ripple-btn"
+            style={cardStyle}
+            onClick={handleStartExam}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#D40511';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(212,5,17,0.12)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#eee';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #D40511 0%, #a30310 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem',
+                fontSize: '1.25rem',
+              }}
+            >
+              <i className="fas fa-graduation-cap" />
+            </div>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#333', margin: '0 0 0.5rem' }}>
+              Iniciar Treinamento
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: '#666', lineHeight: 1.5, margin: 0 }}>
+              Novo por aqui? Assista ao vídeo e responda as perguntas.
+            </p>
+          </div>
         </div>
       </div>
     </ExamLayout>

@@ -1,5 +1,4 @@
 import firebase from 'firebase/app';
-import 'firebase/firestore';
 import 'firebase/auth';
 
 const config = {
@@ -16,9 +15,5 @@ if (!firebase.apps.length) {
   firebase.initializeApp(config);
 }
 
-const firestoreInstance = firebase.firestore();
-firestoreInstance.settings({ experimentalForceLongPolling: true, merge: true });
-
 export const auth = firebase.auth();
-export const firestore = firestoreInstance;
 export default firebase;

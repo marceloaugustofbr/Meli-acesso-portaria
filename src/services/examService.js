@@ -9,6 +9,10 @@ export const examService = {
     return apiService.checkStatus(cpf);
   },
 
+  async exportExams(filters = {}) {
+    return apiService.exportExams(filters);
+  },
+
   async getAggregation() {
     return apiService.getAggregation();
   },

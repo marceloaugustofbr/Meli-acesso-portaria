@@ -19,6 +19,7 @@ const queryClient = new QueryClient({
 const Login = lazy(() => import('../Login'));
 const ExamIntro = lazy(() => import('../Exam/Intro'));
 const ExamCheck = lazy(() => import('../Exam/Check'));
+const ExamRules = lazy(() => import('../Exam/Rules'));
 const ExamVideo = lazy(() => import('../Exam/Video'));
 const ExamIdentification = lazy(() => import('../Exam/Identification'));
 const ExamQuestions = lazy(() => import('../Exam/Questions'));
@@ -33,6 +34,7 @@ const Portaria = lazy(() => import('../Portaria'));
 
 const stepRoutes = [
   { path: ROUTES.EXAM_CHECK, step: 'check', component: ExamCheck },
+  { path: ROUTES.EXAM_RULES, step: 'rules', component: ExamRules },
   { path: ROUTES.EXAM_VIDEO, step: 'video', component: ExamVideo },
   { path: ROUTES.EXAM_IDENTIFICATION, step: 'identification', component: ExamIdentification },
   { path: ROUTES.EXAM_QUESTIONS, step: 'questions', component: ExamQuestions },

@@ -2,6 +2,7 @@
 // O escopo global do Worker persiste entre requisições no mesmo isolate.
 const tokenCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX_SIZE = 500;
 let cleanupCounter = 0;
 const CLEANUP_INTERVAL = 10;
 
@@ -11,6 +12,14 @@ function cleanupCache() {
     if (now >= value.expiresAt) {
       tokenCache.delete(key);
     }
+  }
+}
+
+function evictOldest() {
+  // Remove a entrada mais antiga (primeira do Map)
+  const firstKey = tokenCache.keys().next().value;
+  if (firstKey !== undefined) {
+    tokenCache.delete(firstKey);
   }
 }
 
@@ -74,6 +83,11 @@ export async function verifyFirebaseToken(idToken, env) {
     const expiresAt = Math.min(Date.now() + CACHE_TTL_MS, expMs);
 
     tokenCache.set(idToken, { result, expiresAt });
+
+    // Enforce max size (LRU eviction)
+    while (tokenCache.size > CACHE_MAX_SIZE) {
+      evictOldest();
+    }
 
     maybeCleanupCache();
 

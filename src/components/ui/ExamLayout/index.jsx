@@ -5,7 +5,7 @@ import { useExamStore } from '../../../store';
 import ROUTES from '../../../constants/routes';
 import '../../../assets/css/exam-layout.scss';
 
-const progressSteps = ['video', 'identification', 'questions', 'terms', 'signature', 'result'];
+const progressSteps = ['rules', 'video', 'identification', 'questions', 'terms', 'signature', 'result'];
 
 export default function ExamLayout({ children }) {
   const location = useLocation();

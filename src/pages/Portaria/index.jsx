@@ -5,6 +5,17 @@ import { maskCPF, formatCPF, validateCPF } from '../../utils/cpf';
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 30000;
 
+function loadJsQR() {
+  return new Promise(function (resolve, reject) {
+    if (window.jsQR) { resolve(window.jsQR); return; }
+    const s = document.createElement('script');
+    s.src = '/jsqr.js';
+    s.onload = function () { resolve(window.jsQR); };
+    s.onerror = function () { reject(new Error('Falha ao carregar jsQR')); };
+    document.head.appendChild(s);
+  });
+}
+
 export default function Portaria() {
   const cpfRef = useRef(null);
   const [cpf, setCpf] = useState('');
@@ -17,6 +28,16 @@ export default function Portaria() {
   const [pinLoading, setPinLoading] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [portariaToken, setPortariaToken] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment');
+  const [cameraPermission, setCameraPermission] = useState(true);
+  const [torchOn, setTorchOn] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanIntervalRef = useRef(null);
+  const cameraActiveRef = useRef(false);
 
   const [attempts, setAttempts] = useState(() => {
     try {
@@ -96,6 +117,194 @@ export default function Portaria() {
     if (authorized) cpfRef.current?.focus();
   }, [authorized]);
 
+  const handleCPFChange = (e) => {
+    setCpf(maskCPF(e.target.value));
+    setResult(null);
+    setExamData(null);
+    setCpfError('');
+  };
+
+  const doCheck = async (cpfValue) => {
+    const digits = cpfValue.replace(/\D/g, '');
+    if (digits.length !== 11) return;
+
+    if (!validateCPF(cpfValue)) {
+      setCpfError('CPF inválido');
+      return;
+    }
+
+    setChecking(true);
+    setResult(null);
+    setExamData(null);
+    try {
+      const snapshot = await examService.getLatestByCpf(cpfValue, portariaToken);
+      if (snapshot) {
+        setExamData(snapshot);
+        if (snapshot.status === 'blocked') {
+          setResult('bloqueado');
+        } else if (snapshot.status === 'approved') {
+          setResult('liberado');
+        } else {
+          setResult('reprovado');
+        }
+      } else {
+        setResult('nao_encontrado');
+      }
+    } catch (err) {
+      if (err.message?.includes('Sessão')) {
+        sessionStorage.removeItem('portaria_token');
+        sessionStorage.removeItem('portaria_expires_at');
+        setPortariaToken('');
+        setAuthorized(false);
+        setPinError('Sessão expirada, informe a senha novamente');
+        return;
+      }
+      setResult('erro');
+    } finally {
+      setChecking(false);
+      setScanLoading(false);
+    }
+  };
+
+  const handleCheck = () => doCheck(cpf);
+
+  const handleNewCheck = () => {
+    setCpf('');
+    setResult(null);
+    setExamData(null);
+    setCpfError('');
+    setScanLoading(false);
+    cpfRef.current?.focus();
+  };
+
+  const stopCamera = useCallback(() => {
+    cameraActiveRef.current = false;
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(function (t) { t.stop(); });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showScanner) {
+      stopCamera();
+      return undefined;
+    }
+
+    cameraActiveRef.current = true;
+    setCameraPermission(true);
+    setTorchOn(false);
+
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return undefined;
+
+    let jsqrLoaded = false;
+
+    function handleScan() {
+      if (!cameraActiveRef.current) return;
+      if (!jsqrLoaded) return;
+
+      if (video.readyState < 2) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert',
+      });
+
+      if (code && code.data) {
+        const digits = code.data.replace(/\D/g, '');
+        if (digits.length === 11) {
+          cameraActiveRef.current = false;
+          if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
+            scanIntervalRef.current = null;
+          }
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(function (t) { t.stop(); });
+            streamRef.current = null;
+          }
+          video.srcObject = null;
+          const maskedCpf = maskCPF(digits);
+          setCpf(maskedCpf);
+          setShowScanner(false);
+          setFacingMode('environment');
+          setScanLoading(true);
+          doCheck(maskedCpf);
+        }
+      }
+    }
+
+    loadJsQR().then(function () {
+      jsqrLoaded = true;
+      if (!cameraActiveRef.current) return;
+
+      navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { min: 640, ideal: 1280 },
+          height: { min: 480, ideal: 720 },
+        },
+      }).then(function (stream) {
+        if (!cameraActiveRef.current) {
+          stream.getTracks().forEach(function (t) { t.stop(); });
+          return;
+        }
+        streamRef.current = stream;
+        video.srcObject = stream;
+        video.setAttribute('playsinline', '');
+        video.muted = true;
+        video.play();
+      }).then(function () {
+        if (!cameraActiveRef.current) return;
+        scanIntervalRef.current = setInterval(handleScan, 400);
+      }).catch(function (err) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setCameraPermission(false);
+        }
+      });
+    }).catch(function () {
+      setCameraPermission(false);
+    });
+
+    return function cleanup() {
+      cameraActiveRef.current = false;
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(function (t) { t.stop(); });
+        streamRef.current = null;
+      }
+      if (video) video.srcObject = null;
+    };
+  }, [showScanner, facingMode, stopCamera]);
+
+  useEffect(function flashEffect() {
+    if (!streamRef.current || !showScanner) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track || !track.applyConstraints) return;
+    track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(function () {});
+  }, [torchOn, showScanner]);
+
   if (!authorized) {
     return (
       <div style={{
@@ -147,72 +356,19 @@ export default function Portaria() {
     );
   }
 
-  const handleCPFChange = (e) => {
-    setCpf(maskCPF(e.target.value));
-    setResult(null);
-    setExamData(null);
-    setCpfError('');
-  };
-
-  const handleCheck = async () => {
-    const digits = cpf.replace(/\D/g, '');
-    if (digits.length !== 11) return;
-
-    if (!validateCPF(cpf)) {
-      setCpfError('CPF inválido');
-      return;
-    }
-
-    setChecking(true);
-    setResult(null);
-    setExamData(null);
-    try {
-      const snapshot = await examService.getLatestByCpf(cpf, portariaToken);
-      if (snapshot) {
-        setExamData(snapshot);
-        if (snapshot.status === 'blocked') {
-          setResult('bloqueado');
-        } else if (snapshot.status === 'approved') {
-          setResult('apto');
-        } else {
-          setResult('reprovado');
-        }
-      } else {
-        setResult('nao_encontrado');
-      }
-    } catch (err) {
-      if (err.message?.includes('Sessão')) {
-        sessionStorage.removeItem('portaria_token');
-        sessionStorage.removeItem('portaria_expires_at');
-        setPortariaToken('');
-        setAuthorized(false);
-        setPinError('Sessão expirada, informe a senha novamente');
-        return;
-      }
-      setResult('erro');
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const handleNewCheck = () => {
-    setCpf('');
-    setResult(null);
-    setExamData(null);
-    setCpfError('');
-    cpfRef.current?.focus();
-  };
-
   return (
     <>
       <style>{`
         .portaria-bg {
-          background: url('/wallpaper-pc.jpg') center/cover no-repeat !important;
+          background: url('/wallpaper-pc.webp') center/cover no-repeat !important;
         }
         @media (max-width: 768px) {
           .portaria-bg {
             background: url('/wallpaper2.jpg') center/cover no-repeat !important;
           }
+        }
+        @keyframes portaria-spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     <div className="portaria-bg" style={{
@@ -231,26 +387,30 @@ export default function Portaria() {
         padding: 32,
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
       }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ textAlign: 'right', marginBottom: 8 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ textAlign: 'right', marginBottom: 6 }}>
             <button
               className="button is-small is-light"
               onClick={() => { sessionStorage.removeItem('portaria_auth'); setAuthorized(false); setResult(null); setExamData(null); }}
-              style={{ fontSize: '0.75rem' }}
+              style={{ fontSize: '0.7rem' }}
             >
               <i className="fas fa-sign-out-alt" style={{ marginRight: 4 }} /> Sair
             </button>
           </div>
-          <img src="/dhl-logo.png" alt="DHL" style={{ width: '50%', height: 'auto' }} />
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#D40511', margin: 0 }}>
-            Consulta de Liberação
-          </h1>
-          <p style={{ fontSize: '0.8rem', color: '#888', margin: '4px 0 0' }}>
-            Portaria - DHL
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
+            <img src="/dhl-logo.png" alt="DHL" style={{ height: 32 }} />
+            <div style={{ textAlign: 'left' }}>
+              <h1 style={{ fontSize: '1rem', fontWeight: 700, color: '#D40511', margin: 0, lineHeight: 1.2 }}>
+                Consulta de Liberação
+              </h1>
+              <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>
+                Portaria
+              </p>
+            </div>
+          </div>
         </div>
 
-        {!result && (
+        {!result && !showScanner && !scanLoading && (
           <div className="field">
             <label className="label" style={{ fontSize: '0.85rem', color: '#555' }}>
               Digite o CPF do colaborador
@@ -273,69 +433,218 @@ export default function Portaria() {
           </div>
         )}
 
-        {!result && (
-          <button
-            className={`button is-medium is-fullwidth ${checking ? 'is-loading' : ''}`}
-            disabled={cpf.replace(/\D/g, '').length !== 11 || !!cpfError || checking}
-            onClick={handleCheck}
-            style={{ borderRadius: 8, marginTop: 8, background: '#D40511', color: '#fff', border: 'none' }}
-          >
-            Consultar
-          </button>
+        {!result && !showScanner && !scanLoading && (
+          <>
+            <button
+              className={`button is-medium is-fullwidth ${checking ? 'is-loading' : ''}`}
+              disabled={cpf.replace(/\D/g, '').length !== 11 || !!cpfError || checking}
+              onClick={handleCheck}
+              style={{ borderRadius: 8, marginTop: 8, background: '#D40511', color: '#fff', border: 'none' }}
+            >
+              Consultar
+            </button>
+            <button
+              className="button is-medium is-fullwidth"
+              onClick={() => setShowScanner(true)}
+              style={{ borderRadius: 8, marginTop: 8, background: '#fff', color: '#D40511', border: '1px solid #D40511' }}
+            >
+              <i className="fas fa-camera" style={{ marginRight: 8 }} />
+              Ler QR Code
+            </button>
+          </>
         )}
 
-        {result === 'apto' && examData && (
-          <div style={{ textAlign: 'center' }}>
+        {scanLoading && checking && (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{
-              width: 72,
-              height: 72,
+              width: 48,
+              height: 48,
+              border: '4px solid #eee',
+              borderTopColor: '#D40511',
               borderRadius: '50%',
-              background: '#e8f5e9',
+              animation: 'portaria-spin 0.8s linear infinite',
+              margin: '0 auto 16px',
+            }} />
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#555', margin: 0 }}>
+              Consultando...
+            </p>
+          </div>
+        )}
+
+        {!result && showScanner && (
+          <div style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: '#000',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+              background: 'rgba(0,0,0,0.5)',
+              zIndex: 1,
             }}>
-              <i className="fas fa-check-circle fa-3x" style={{ color: '#28A745' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setFacingMode(function (f) { return f === 'environment' ? 'user' : 'environment'; })}
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: '#fff',
+                    padding: '8px 14px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <i className="fas fa-sync-alt" />
+                  {facingMode === 'environment' ? 'Frontal' : 'Traseira'}
+                </button>
+                <button
+                  onClick={() => setTorchOn(function (t) { return !t; })}
+                  style={{
+                    background: torchOn ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: '#fff',
+                    padding: '8px 14px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <i className="fas fa-bolt" style={{ color: torchOn ? '#FFD700' : '#fff' }} />
+                  Flash
+                </button>
+              </div>
+
+              <button
+                onClick={() => { setShowScanner(false); setFacingMode('environment'); setTorchOn(false); }}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  color: '#fff',
+                  width: 36,
+                  height: 36,
+                  fontSize: '1.3rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <i className="fas fa-times" />
+              </button>
             </div>
-            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#28A745', margin: 0 }}>
-              APTO
+
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#111' }}>
+              {!cameraPermission && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  background: '#111', color: '#fff', zIndex: 10,
+                  padding: 24, textAlign: 'center',
+                }}>
+                  <i className="fas fa-exclamation-triangle" style={{ fontSize: '2rem', marginBottom: 12, opacity: 0.8 }} />
+                  <p style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>Permissão necessária</p>
+                  <p style={{ fontSize: '0.85rem', opacity: 0.7, margin: 0 }}>
+                    Acesse as configurações do seu dispositivo e permita o acesso à câmera.
+                  </p>
+                </div>
+              )}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                }}
+              />
+              <canvas ref={canvasRef} style={{ display: 'none' }} />
+            </div>
+
+            <div style={{
+              textAlign: 'center',
+              padding: '16px 16px 24px',
+              background: 'rgba(0,0,0,0.5)',
+              color: '#fff',
+              fontSize: '0.85rem',
+            }}>
+              <i className="fas fa-qrcode" style={{ marginRight: 6, opacity: 0.7 }} />
+              Aponte a câmera para o QR Code do colaborador
+            </div>
+          </div>
+        )}
+
+        {result === 'liberado' && examData && (
+          <div style={{
+            background: '#f0fdf4',
+            border: '2px solid #22c55e',
+            borderRadius: 16,
+            padding: '24px 20px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', background: '#dcfce7',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
+            }}>
+              <i className="fas fa-check-circle" style={{ fontSize: '2rem', color: '#16a34a' }} />
+            </div>
+            <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#16a34a', margin: 0, letterSpacing: 1 }}>
+              LIBERADO
             </p>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a2e', margin: '8px 0 4px' }}>
-              {examData.name}
+            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e', margin: '10px 0 2px' }}>
+              {examData.name?.toUpperCase()}
             </p>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: 0 }}>
-              {formatCPF(examData.cpf || cpf)}
+            <p style={{ fontSize: '0.82rem', color: '#666', margin: 0 }}>
+              {maskCPF(examData.cpf || cpf)}
             </p>
             <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 24,
-              marginTop: 16,
-              padding: 12,
-              background: '#f9f9fb',
-              borderRadius: 12,
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14,
+              background: '#fff', borderRadius: 10, padding: '10px 12px',
             }}>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>Cidade</p>
-                <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: '2px 0 0' }}>{examData.city}</p>
+              <div>
+                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Cidade</p>
+                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.city}</p>
               </div>
-              <div style={{ width: 1, background: '#eee' }} />
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>Empresa diarista</p>
-                <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: '2px 0 0' }}>{examData.operationType}</p>
+              <div>
+                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Empresa</p>
+                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.operationType}</p>
               </div>
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#888', margin: '12px 0 0' }}>
-              Liberado em {examData.createdAt ? new Date(examData.createdAt).toLocaleDateString('pt-BR') : '-'}
-            </p>
-            <p style={{ fontSize: '0.8rem', color: '#888', margin: '4px 0 0' }}>
-              Nota: {examData.percentage != null ? (examData.percentage / 10).toFixed(1) : '-'}
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+              <div>
+                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Nota</p>
+                <p style={{ fontWeight: 700, fontSize: '1rem', margin: '2px 0 0', color: '#16a34a' }}>
+                  {examData.percentage != null ? (examData.percentage / 10).toFixed(1) : '-'}
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Data da liberação</p>
+                <p style={{ fontWeight: 600, fontSize: '0.82rem', margin: '2px 0 0', color: '#555' }}>
+                  {examData.createdAt ? new Date(examData.createdAt).toLocaleDateString('pt-BR') : '-'}
+                </p>
+              </div>
+            </div>
             <button
               className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
+              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
             >
               Nova Consulta
             </button>
@@ -343,51 +652,45 @@ export default function Portaria() {
         )}
 
         {result === 'reprovado' && examData && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{
+            background: '#fef2f2',
+            border: '2px solid #ef4444',
+            borderRadius: 16,
+            padding: '24px 20px',
+            textAlign: 'center',
+          }}>
             <div style={{
-              width: 72,
-              height: 72,
-              borderRadius: '50%',
-              background: '#fef0f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
+              width: 64, height: 64, borderRadius: '50%', background: '#fee2e2',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
             }}>
-              <i className="fas fa-times-circle fa-3x" style={{ color: '#D40511' }} />
+              <i className="fas fa-times-circle" style={{ fontSize: '2rem', color: '#dc2626' }} />
             </div>
-            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#D40511', margin: 0 }}>
+            <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#dc2626', margin: 0, letterSpacing: 1 }}>
               REPROVADO
             </p>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a2e', margin: '8px 0 4px' }}>
-              {examData.name}
+            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e', margin: '10px 0 2px' }}>
+              {examData.name?.toUpperCase()}
             </p>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: 0 }}>
-              {formatCPF(examData.cpf || cpf)}
+            <p style={{ fontSize: '0.82rem', color: '#666', margin: 0 }}>
+              {maskCPF(examData.cpf || cpf)}
             </p>
             <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 24,
-              marginTop: 16,
-              padding: 12,
-              background: '#f9f9fb',
-              borderRadius: 12,
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14,
+              background: '#fff', borderRadius: 10, padding: '10px 12px',
             }}>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>Cidade</p>
-                <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: '2px 0 0' }}>{examData.city}</p>
+              <div>
+                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Cidade</p>
+                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.city}</p>
               </div>
-              <div style={{ width: 1, background: '#eee' }} />
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>Empresa diarista</p>
-                <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: '2px 0 0' }}>{examData.operationType}</p>
+              <div>
+                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Empresa</p>
+                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.operationType}</p>
               </div>
             </div>
             <button
               className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
+              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
             >
               Nova Consulta
             </button>
@@ -395,28 +698,32 @@ export default function Portaria() {
         )}
 
         {result === 'bloqueado' && examData && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{
+            background: '#fff7ed',
+            border: '2px solid #f97316',
+            borderRadius: 16,
+            padding: '24px 20px',
+            textAlign: 'center',
+          }}>
             <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              background: '#FFF3E0', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px',
+              width: 64, height: 64, borderRadius: '50%', background: '#ffedd5',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
             }}>
-              <i className="fas fa-ban fa-3x" style={{ color: '#E65100' }} />
+              <i className="fas fa-ban" style={{ fontSize: '2rem', color: '#ea580c' }} />
             </div>
-            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#E65100', margin: 0 }}>
+            <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ea580c', margin: 0, letterSpacing: 1 }}>
               BLOQUEADO
             </p>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a2e', margin: '8px 0 4px' }}>
-              {examData.name}
+            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e', margin: '10px 0 2px' }}>
+              {examData.name?.toUpperCase()}
             </p>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: 0 }}>
-              {formatCPF(examData.cpf || cpf)}
+            <p style={{ fontSize: '0.82rem', color: '#666', margin: 0 }}>
+              {maskCPF(examData.cpf || cpf)}
             </p>
             <div style={{
-              background: '#FFF8E1', borderRadius: 12, padding: 16, marginTop: 16,
-              textAlign: 'left',
+              background: '#fff', borderRadius: 10, padding: '10px 12px', marginTop: 14, textAlign: 'left',
             }}>
-              <p style={{ fontSize: '0.8rem', color: '#E65100', fontWeight: 600, margin: '0 0 4px' }}>
+              <p style={{ fontSize: '0.7rem', color: '#ea580c', fontWeight: 700, margin: '0 0 4px' }}>
                 <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
                 Motivo do bloqueio
               </p>
@@ -424,8 +731,8 @@ export default function Portaria() {
                 {examData.blockReason || 'Não informado'}
               </p>
               {examData.blockedAt && (
-                <p style={{ fontSize: '0.75rem', color: '#999', marginTop: 8 }}>
-                  Bloqueado em {new Date(examData.blockedAt).toLocaleString('pt-BR')}
+                <p style={{ fontSize: '0.7rem', color: '#999', marginTop: 6 }}>
+                  {new Date(examData.blockedAt).toLocaleString('pt-BR')}
                   {examData.blockedBy ? ` por ${examData.blockedBy}` : ''}
                 </p>
               )}
@@ -433,7 +740,7 @@ export default function Portaria() {
             <button
               className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
+              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
             >
               Nova Consulta
             </button>
@@ -441,29 +748,29 @@ export default function Portaria() {
         )}
 
         {result === 'nao_encontrado' && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{
+            background: '#fefce8',
+            border: '2px solid #eab308',
+            borderRadius: 16,
+            padding: '24px 20px',
+            textAlign: 'center',
+          }}>
             <div style={{
-              width: 72,
-              height: 72,
-              borderRadius: '50%',
-              background: '#fff8e6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
+              width: 64, height: 64, borderRadius: '50%', background: '#fef9c3',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
             }}>
-              <i className="fas fa-user-slash fa-3x" style={{ color: '#ffd83d' }} />
+              <i className="fas fa-user-slash" style={{ fontSize: '1.8rem', color: '#ca8a04' }} />
             </div>
-            <p style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1a1a2e', margin: 0 }}>
-              Não encontrado
+            <p style={{ fontSize: '1.4rem', fontWeight: 800, color: '#a16207', margin: 0 }}>
+              NÃO ENCONTRADO
             </p>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: '8px 0 0' }}>
+            <p style={{ fontSize: '0.85rem', color: '#666', margin: '10px 0 0' }}>
               CPF {formatCPF(cpf)} não possui registro de treinamento.
             </p>
             <button
               className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20, background: '#FFD700', color: '#1a1a2e', border: 'none' }}
+              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
             >
               Nova Consulta
             </button>
@@ -471,29 +778,29 @@ export default function Portaria() {
         )}
 
         {result === 'erro' && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{
+            background: '#fef2f2',
+            border: '2px solid #fca5a5',
+            borderRadius: 16,
+            padding: '24px 20px',
+            textAlign: 'center',
+          }}>
             <div style={{
-              width: 72,
-              height: 72,
-              borderRadius: '50%',
-              background: '#fef0f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
+              width: 64, height: 64, borderRadius: '50%', background: '#fee2e2',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
             }}>
-              <i className="fas fa-exclamation-triangle fa-3x" style={{ color: '#f14668' }} />
+              <i className="fas fa-exclamation-triangle" style={{ fontSize: '1.8rem', color: '#dc2626' }} />
             </div>
-            <p style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f14668', margin: 0 }}>
+            <p style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626', margin: 0 }}>
               Erro na consulta
             </p>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: '8px 0 0' }}>
+            <p style={{ fontSize: '0.85rem', color: '#666', margin: '10px 0 0' }}>
               Tente novamente em alguns instantes.
             </p>
             <button
-              className="button is-light is-medium is-fullwidth"
+              className="button is-medium is-fullwidth"
               onClick={handleNewCheck}
-              style={{ borderRadius: 8, marginTop: 20 }}
+              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
             >
               Tentar Novamente
             </button>

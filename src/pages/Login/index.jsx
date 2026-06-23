@@ -8,6 +8,9 @@ import { authService } from '../../services';
 import { loginSchema } from '../../validations';
 import ROUTES from '../../constants/routes';
 
+// eslint-disable-next-line import/no-unresolved
+import './Login.scss';
+
 export default function Login() {
   const history = useHistory();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -49,70 +52,95 @@ export default function Login() {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-page">
+      {/* Brand panel */}
       <div className="login-brand">
-        <div className="login-brand-lines" />
-        <div className="login-brand-content fade-in">
-          <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-1px', marginBottom: '0.5rem' }}>
-            SAFE ACCESS
-          </div>
-          <p style={{ fontSize: '1rem', opacity: 0.85, maxWidth: 340, lineHeight: 1.5 }}>
-            Treinamento e Liberação de Acesso Operacional
+        <div className="login-brand-bg" />
+        <div className="login-brand-inner">
+          <div className="login-brand-badge">DHL SUPPLY CHAIN</div>
+          <h1 className="login-brand-title">Safe Access</h1>
+          <p className="login-brand-sub">
+            Treinamento e Liberação<br />de Acesso Operacional
+          </p>
+          <div className="login-brand-divider" />
+          <p className="login-brand-footer">
+            Plataforma de gestão de exames<br />e credenciamento de colaboradores
           </p>
         </div>
       </div>
-      <div className="login-form-wrapper">
-        <div style={{ width: '100%', maxWidth: 360 }}>
-          <div className="fade-in-up" style={{ marginBottom: '2rem' }}>
-            <img src="/dhl-logo.png" alt="DHL" style={{ height: 36, marginBottom: '0.5rem' }} />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#222' }}>Acessar</h1>
-            <p style={{ fontSize: '0.85rem', color: '#888', margin: '4px 0 0' }}>
-              Informe suas credenciais para continuar
-            </p>
+
+      {/* Form panel */}
+      <div className="login-form-panel">
+        <div className="login-form-container">
+          <div className="login-form-header">
+            <img src="/dhl-logo.png" alt="DHL" className="login-logo" />
+            <h2 className="login-form-title">Acessar</h2>
+            <p className="login-form-desc">Informe suas credenciais para continuar</p>
           </div>
-          <form onSubmit={handleSubmit(onSubmit)} className="stagger">
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem', color: '#444' }}>Email</label>
-              <input
-                className={classNames('input-dhl', { 'is-danger': errors.email })}
-                type="email"
-                {...register('email')}
-                placeholder="seu@email.com"
-                autoComplete="email"
-              />
-              {errors.email && <p style={{ fontSize: '0.78rem', color: '#D32F2F', marginTop: 4 }}>{errors.email.message}</p>}
-            </div>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem', color: '#444' }}>Senha</label>
-              <input
-                className={classNames('input-dhl', { 'is-danger': errors.password })}
-                type="password"
-                {...register('password')}
-                placeholder="Sua senha"
-                autoComplete="current-password"
-              />
-              {errors.password && <p style={{ fontSize: '0.78rem', color: '#D32F2F', marginTop: 4 }}>{errors.password.message}</p>}
-            </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
             {errorMsg && (
-              <p style={{ fontSize: '0.85rem', color: '#D32F2F', marginBottom: '1rem', textAlign: 'center' }}>
-                {errorMsg}
-              </p>
+              <div className="login-error">
+                <i className="fas fa-exclamation-circle" />
+                <span>{errorMsg}</span>
+              </div>
             )}
+
+            <div className="login-field">
+              <label className="login-label" htmlFor="email">Email</label>
+              <div className={classNames('login-input-wrapper', { 'is-error': errors.email })}>
+                <i className="fas fa-envelope login-input-icon" />
+                <input
+                  id="email"
+                  className="login-input"
+                  type="email"
+                  {...register('email')}
+                  placeholder="seu@email.com"
+                  autoComplete="email"
+                />
+              </div>
+              {errors.email && <p className="login-field-error">{errors.email.message}</p>}
+            </div>
+
+            <div className="login-field">
+              <label className="login-label" htmlFor="password">Senha</label>
+              <div className={classNames('login-input-wrapper', { 'is-error': errors.password })}>
+                <i className="fas fa-lock login-input-icon" />
+                <input
+                  id="password"
+                  className="login-input"
+                  type="password"
+                  {...register('password')}
+                  placeholder="Sua senha"
+                  autoComplete="current-password"
+                />
+              </div>
+              {errors.password && <p className="login-field-error">{errors.password.message}</p>}
+            </div>
+
             <button
               type="submit"
-              className={classNames('btn-dhl ripple-btn', { 'is-loading': submitting })}
-              style={{ width: '100%', justifyContent: 'center', padding: '0.85rem 1.5rem', fontSize: '1rem' }}
+              className={classNames('login-submit', { 'is-loading': submitting })}
+              disabled={submitting}
             >
               {submitting ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="spinner-dhl" style={{ width: 20, height: 20, borderWidth: 2 }} />
+                <>
+                  <span className="login-spinner" />
                   Entrando...
-                </span>
+                </>
               ) : (
-                'Entrar'
+                <>
+                  Entrar
+                  <i className="fas fa-arrow-right" style={{ fontSize: '0.85rem' }} />
+                </>
               )}
             </button>
           </form>
+
+          <p className="login-footer-text">
+            <i className="fas fa-shield-alt" style={{ marginRight: 6, opacity: 0.5 }} />
+            Ambiente seguro · DHL Supply Chain
+          </p>
         </div>
       </div>
     </div>

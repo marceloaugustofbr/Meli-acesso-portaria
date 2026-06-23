@@ -62,32 +62,10 @@ export const apiService = {
 
   // ─── Exams ─────────────────────────────
   async checkStatus(cpf) {
-    try {
-      return await request('/api/exams/check-status', {
-        method: 'POST',
-        body: { cpf },
-      });
-    } catch {
-      // Fallback: Worker ainda não atualizado com o novo endpoint.
-      // Usa o endpoint antigo com projeção segura no cliente.
-      // FIXME: Remover este fallback após deploy do Worker.
-      const exam = await request(`/api/exams/cpf/${cpf.replace(/\D/g, '')}`);
-      if (!exam) return { found: false };
-      return {
-        found: true,
-        name: exam.name,
-        cpf: exam.cpf,
-        city: exam.city,
-        operationType: exam.operationType,
-        status: exam.status,
-        percentage: exam.percentage,
-        score: exam.score,
-        correctAnswers: exam.correctAnswers,
-        wrongAnswers: exam.wrongAnswers,
-        createdAt: exam.createdAt,
-        attempts: exam.attempts,
-      };
-    }
+    return request('/api/exams/check-status', {
+      method: 'POST',
+      body: { cpf },
+    });
   },
 
   async createExam(examData) {
@@ -108,6 +86,19 @@ export const apiService = {
   async getExamByUid(uid) {
     const token = await getIdToken();
     return request(`/api/exams/uid/${encodeURIComponent(uid)}`, {
+      method: 'GET',
+      token,
+    });
+  },
+
+  async exportExams(filters = {}) {
+    const token = await getIdToken();
+    const params = new URLSearchParams();
+    if (filters.name) params.set('name', filters.name);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.city) params.set('city', filters.city);
+    if (filters.operationType) params.set('operationType', filters.operationType);
+    return request(`/api/exams/export?${params.toString()}`, {
       method: 'GET',
       token,
     });

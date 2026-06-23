@@ -4,18 +4,22 @@ import PropTypes from 'prop-types';
 import { useExamStore } from '../../../store';
 import ROUTES from '../../../constants/routes';
 
-const stepOrder = ['intro', 'check', 'video', 'identification', 'questions', 'terms', 'signature', 'result'];
+const stepOrder = ['intro', 'check', 'rules', 'video', 'identification', 'questions', 'terms', 'signature', 'result'];
+const INTEGRITY_SALT = 'sa-exam-v2';
 
 function hashCode(str) {
-  let hash = 0;
+  let hash = 5381;
   for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
     // eslint-disable-next-line no-bitwise
-    hash = ((hash << 5) - hash) + char;
-    // eslint-disable-next-line no-bitwise
-    hash |= 0;
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) & 0xFFFFFFFF;
   }
-  return hash;
+    // eslint-disable-next-line no-bitwise
+    return hash >>> 0;
+}
+
+function signData(data) {
+  const json = JSON.stringify(data);
+  return hashCode(INTEGRITY_SALT + json + INTEGRITY_SALT);
 }
 
 function getCompletedSteps() {
@@ -23,8 +27,8 @@ function getCompletedSteps() {
     const raw = sessionStorage.getItem('exam_completed_steps');
     if (!raw) return [];
     const data = JSON.parse(raw);
-    const check = hashCode(JSON.stringify(data.steps));
-    if (data.hash !== check) return [];
+    const expected = signData(data.steps);
+    if (data.sig !== expected) return [];
     return data.steps;
   } catch {
     return [];
@@ -36,7 +40,7 @@ function markStepCompleted(step) {
   if (!steps.includes(step)) {
     steps.push(step);
   }
-  const data = { steps, hash: hashCode(JSON.stringify(steps)) };
+  const data = { steps, sig: signData(steps) };
   sessionStorage.setItem('exam_completed_steps', JSON.stringify(data));
 }
 

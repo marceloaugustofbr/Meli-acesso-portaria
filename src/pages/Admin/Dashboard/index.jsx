@@ -2,11 +2,13 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useQueryClient } from '@tanstack/react-query';
+import * as XLSX from 'xlsx';
 import { useExamStats, useLatestExams } from '../../../hooks';
 import { examService } from '../../../services';
 import AdminLayout from '../../../components/ui/AdminLayout';
 import Loading from '../../../components/ui/Loading';
 import { formatCPF } from '../../../utils';
+import CITIES from '../../../constants/cities';
 
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -25,6 +27,7 @@ export default function AdminDashboard() {
   const [cursor, setCursor] = useState(null);
 
   const [dropdownPos, setDropdownPos] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const [blockModal, setBlockModal] = useState(null);
   const [unblockModal, setUnblockModal] = useState(null);
   const [blockReason, setBlockReason] = useState('');
@@ -33,11 +36,11 @@ export default function AdminDashboard() {
   const { data, isLoading: examsLoading } = useLatestExams(appliedFilters, cursor);
 
   useEffect(() => {
-    if (!dropdownPos) return undefined;
-    const handler = () => setDropdownPos(null);
+    if (!dropdownPos && !exportOpen) return undefined;
+    const handler = () => { setDropdownPos(null); setExportOpen(false); };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [dropdownPos]);
+  }, [dropdownPos, exportOpen]);
 
   const applyFilters = useCallback(() => {
     const next = {};
@@ -122,7 +125,6 @@ export default function AdminDashboard() {
       setBlockModal(null);
       setBlockReason('');
     } catch (err) {
-      console.error('Erro ao bloquear:', err); // eslint-disable-line no-console
       alert(`Erro ao bloquear: ${err.message}`);
     } finally {
       setSavingBlock(false);
@@ -138,10 +140,45 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['examAggregation'] });
       setUnblockModal(null);
     } catch (err) {
-      console.error('Erro ao desbloquear:', err); // eslint-disable-line no-console
       alert(`Erro ao desbloquear: ${err.message}`);
     } finally {
       setSavingBlock(false);
+    }
+  };
+
+  const handleExport = async (format) => {
+    setExportOpen(false);
+    try {
+      const res = await examService.exportExams(appliedFilters);
+      const rows = (res.data || []).map((exam) => ({
+        Nome: exam.name || '',
+        CPF: exam.cpf || '',
+        Cidade: exam.city || '',
+        'Tipo (Operação)': exam.operationType || '',
+        Nota: exam.percentage != null ? (exam.percentage / 10).toFixed(1) : '',
+        Status: statusConfig[exam.status]?.label || exam.status || '',
+        Tentativas: exam.attempts || 1,
+        Data: exam.createdAt ? new Date(exam.createdAt).toLocaleDateString('pt-BR') : '',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      if (format === 'csv') {
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `exames_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        XLSX.utils.book_append_sheet(wb, ws, 'Exames');
+        XLSX.writeFile(wb, `exames_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      }
+    } catch (err) {
+      alert('Erro ao exportar. Tente novamente.');
     }
   };
 
@@ -150,7 +187,7 @@ export default function AdminDashboard() {
       await examService.recalculateAggregation();
       queryClient.invalidateQueries({ queryKey: ['examAggregation'] });
     } catch (err) {
-      console.error('Erro ao recalcular:', err); // eslint-disable-line no-console
+      // Erro silenciado — aggregation pode estar desatualizada
     }
   };
 
@@ -163,6 +200,32 @@ export default function AdminDashboard() {
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Dashboard</h1>
             <p style={{ fontSize: '0.85rem', color: '#888', margin: '4px 0 0' }}>Visão geral dos treinamentos</p>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <button className="button is-small is-light" onClick={() => setExportOpen((o) => !o)}>
+              <span className="icon is-small"><i className="fas fa-download" /></span>
+              <span>Exportar</span>
+            </button>
+            {exportOpen && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, zIndex: 100,
+                background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                minWidth: 140, padding: '0.25rem 0', marginTop: 4,
+              }}>
+                <button onClick={() => handleExport('xlsx')} style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem',
+                  fontSize: '0.85rem', color: '#222', border: 'none', background: 'transparent', cursor: 'pointer',
+                }}>
+                  <i className="fas fa-file-excel" style={{ width: 18, color: '#28A745' }} /> Excel (.xlsx)
+                </button>
+                <button onClick={() => handleExport('csv')} style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem',
+                  fontSize: '0.85rem', color: '#222', border: 'none', background: 'transparent', cursor: 'pointer',
+                }}>
+                  <i className="fas fa-file-csv" style={{ width: 18, color: '#1565C0' }} /> CSV (.csv)
+                </button>
+              </div>
+            )}
           </div>
           <button className="button is-small is-light" onClick={handleRecalculate}>
             <span className="icon is-small"><i className="fas fa-sync-alt" /></span>
@@ -250,11 +313,7 @@ export default function AdminDashboard() {
               />
               <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
                 <option value="">Todas cidades</option>
-                {[
-                  'Araçatuba', 'Avaré', 'Barretos', 'Bauru', 'Cravinhos',
-                  'Franca', 'Jales', 'Piracicaba', 'Presidente Prudente',
-                  'Ribeirão Preto', 'S.J. Rio Preto', 'São Carlos',
-                ].map((c) => <option key={c} value={c}>{c}</option>)}
+                {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <select className="select-dhl" style={{ width: 'auto', padding: '0.4rem 0.75rem', fontSize: '0.8rem' }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                 <option value="">Todos tipos</option>

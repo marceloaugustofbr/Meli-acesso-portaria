@@ -12,20 +12,7 @@ import ExamLayout from '../../../components/ui/ExamLayout';
 
 const companies = ['TSI', 'Polly'];
 
-const cities = [
-  'Araçatuba',
-  'Avaré',
-  'Barretos',
-  'Bauru',
-  'Cravinhos',
-  'Franca',
-  'Jales',
-  'Piracicaba',
-  'Presidente Prudente',
-  'Ribeirão Preto',
-  'S.J Rio Preto',
-  'São Carlos',
-];
+import CITIES from '../../../constants/cities';
 
 export default function ExamIdentification() {
   const history = useHistory();
@@ -53,14 +40,14 @@ export default function ExamIdentification() {
   useEffect(() => {
     if (storedCpf) {
       setValue('cpf', storedCpf);
-      examService.getLatestByCpf(storedCpf).then((last) => {
-        setLastExamData(last);
-        if (last) {
+      examService.checkStatus(storedCpf).then((result) => {
+        if (result && result.found) {
+          setLastExamData(result);
           reset({
-            name: last.name || '',
-            cpf: last.cpf || storedCpf,
-            city: last.city || '',
-            operationType: last.operationType || '',
+            name: result.name || '',
+            cpf: result.cpf || storedCpf,
+            city: result.city || '',
+            operationType: result.operationType || '',
           });
         }
       });
@@ -89,13 +76,13 @@ export default function ExamIdentification() {
       setCpfBlocked('CPF inválido');
       return;
     }
-    const last = lastExamData || await examService.getLatestByCpf(data.cpf);
-    if (last && last.status === 'approved') {
+    const result = lastExamData || await examService.checkStatus(data.cpf);
+    if (result && result.found && result.status === 'approved') {
       setCpfBlocked('CPF já possui aprovação');
       return;
     }
-    if (last && last.status === 'blocked') {
-      const company = data.operationType || last.operationType || 'TSI';
+    if (result && result.found && result.status === 'blocked') {
+      const company = data.operationType || result.operationType || 'TSI';
       setCpfBlocked(`Você está bloqueado para acessar as operações. Entre em contato com a liderança local da ${company} para entender o motivo.`);
       return;
     }
@@ -152,7 +139,7 @@ export default function ExamIdentification() {
             </label>
             <select className={classNames('select-dhl', { 'is-danger': errors.city })} {...register('city')}>
               <option value="">Selecione uma cidade</option>
-              {cities.map((city) => (
+              {CITIES.map((city) => (
                 <option key={city} value={city}>{city}</option>
               ))}
             </select>

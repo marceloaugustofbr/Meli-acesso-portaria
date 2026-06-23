@@ -94,7 +94,7 @@ export default function AdminExamDetail() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <img src="/dhl-logo.png" alt="DHL" style={{ height: 28 }} />
+            <span className="icon is-medium"><i className="fas fa-user-circle" style={{ fontSize: '1.8rem', color: '#D40511' }} /></span>
             <div>
               <p style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1a1a2e', margin: 0 }}>{exam.name}</p>
               <p style={{ fontSize: '0.78rem', color: '#666', margin: '2px 0 0' }}>CPF: {formatCPF(exam.cpf || '')}</p>

@@ -3,6 +3,7 @@ const ROUTES = {
   LOGIN: '/login',
   EXAM_CHECK: '/exam/check',
   EXAM_INTRO: '/exam/intro',
+  EXAM_RULES: '/exam/rules',
   EXAM_VIDEO: '/exam/video',
   EXAM_IDENTIFICATION: '/exam/identification',
   EXAM_QUESTIONS: '/exam/questions',
