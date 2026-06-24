@@ -214,7 +214,11 @@ export class FirestoreClient {
     }
 
     if (orderBy) {
-      query.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+      const list = Array.isArray(orderBy) ? orderBy : [orderBy];
+      query.orderBy = list.map((o) => ({
+        field: { fieldPath: o.field },
+        direction: o.direction || 'ASCENDING',
+      }));
     }
 
     if (limit != null) query.limit = limit;
