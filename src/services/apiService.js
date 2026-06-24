@@ -98,6 +98,8 @@ export const apiService = {
     if (filters.status) params.set('status', filters.status);
     if (filters.city) params.set('city', filters.city);
     if (filters.operationType) params.set('operationType', filters.operationType);
+    if (filters.dateStart) params.set('dateStart', filters.dateStart);
+    if (filters.dateEnd) params.set('dateEnd', filters.dateEnd);
     return request(`/api/exams/export?${params.toString()}`, {
       method: 'GET',
       token,

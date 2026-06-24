@@ -3,6 +3,7 @@ import { useHistory } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import classNames from 'classnames';
 import { useExamStore } from '../../../store';
+import { cloudinaryService } from '../../../services';
 import ROUTES from '../../../constants/routes';
 import ExamLayout from '../../../components/ui/ExamLayout';
 
@@ -40,9 +41,13 @@ export default function ExamSignature() {
     const ctx = resized.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(trimmed, 0, 0, resized.width, resized.height);
 
-    const dataUrl = resized.toDataURL('image/png');
-    setSignature(dataUrl);
-    await new Promise((r) => setTimeout(r, 500));
+    const blob = await new Promise((resolve) => resized.toBlob(resolve, 'image/png'));
+    try {
+      const url = await cloudinaryService.uploadSignature(blob);
+      setSignature(url);
+    } catch (err) {
+      setSignature(null);
+    }
     setSaving(false);
     setStep('result');
     history.push(ROUTES.EXAM_RESULT);
@@ -75,14 +80,13 @@ export default function ExamSignature() {
           </div>
 
           <div className="buttons is-centered mt-4">
-            <button className="button is-light" onClick={handleClear} disabled={saving}>
+            <button className="btn-dhl is-outline" onClick={handleClear} disabled={saving}>
               Limpar
             </button>
             <button
-              className={classNames('button', { 'is-loading': saving })}
+              className={classNames('btn-dhl', { 'is-loading': saving })}
               onClick={handleConfirm}
               disabled={saving}
-              style={{ background: '#D40511', color: '#fff', border: 'none' }}
             >
               Confirmar Assinatura
             </button>

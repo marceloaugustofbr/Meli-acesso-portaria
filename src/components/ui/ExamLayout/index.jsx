@@ -3,7 +3,6 @@ import PropTypes from 'prop-types';
 import { useLocation } from 'react-router-dom';
 import { useExamStore } from '../../../store';
 import ROUTES from '../../../constants/routes';
-import '../../../assets/css/exam-layout.scss';
 
 const progressSteps = ['rules', 'video', 'identification', 'questions', 'terms', 'signature', 'result'];
 
@@ -17,7 +16,7 @@ export default function ExamLayout({ children }) {
 
   return (
     <>
-      <style>{`@media(max-width:768px){.exam-page{background:url('/wallpaper2.jpg') center/cover no-repeat!important}}`}</style>
+      <style>{`@media(max-width:768px){.exam-page{background:url('/wallpaper2-opt.webp') center/cover no-repeat!important}}`}</style>
       <div className="exam-page">
         <div className="exam-inner">
           {showProgress && (

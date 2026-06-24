@@ -199,6 +199,124 @@ export class FirestoreClient {
     }).filter(Boolean);
   }
 
+  async queryDocuments(collection, { filters = [], orderBy, limit, offset } = {}) {
+    const headers = await this._authHeaders();
+    const url = `${this.baseUrl}:runQuery`;
+
+    const query = {
+      from: [{ collectionId: collection }],
+    };
+
+    if (filters.length > 0) {
+      query.where = filters.length === 1
+        ? this._buildFilter(filters[0])
+        : { compositeFilter: { op: 'AND', filters: filters.map((f) => this._buildFilter(f)) } };
+    }
+
+    if (orderBy) {
+      query.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+    }
+
+    if (limit != null) query.limit = limit;
+    if (offset != null) query.offset = offset;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ structuredQuery: query }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Firestore QUERY error: ${response.status} ${err}`);
+    }
+
+    const data = await response.json();
+    return (data || [])
+      .filter((r) => r.document)
+      .map((r) => {
+        const obj = this._docToObj(r.document);
+        if (obj) obj._id = r.document.name.split('/').pop();
+        return obj;
+      })
+      .filter(Boolean);
+  }
+
+  async countDocuments(collection, filters = []) {
+    const headers = await this._authHeaders();
+    const url = `${this.baseUrl}:runAggregationQuery`;
+
+    const query = {
+      from: [{ collectionId: collection }],
+    };
+
+    if (filters.length > 0) {
+      query.where = filters.length === 1
+        ? this._buildFilter(filters[0])
+        : { compositeFilter: { op: 'AND', filters: filters.map((f) => this._buildFilter(f)) } };
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({
+        structuredAggregationQuery: {
+          aggregations: [{ count: {}, alias: 'total' }],
+          structuredQuery: query,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Firestore COUNT error: ${response.status} ${err}`);
+    }
+
+    const data = await response.json();
+    const result = (data || []).find((r) => r.aggregateFields);
+    if (result?.aggregateFields?.total?.integerValue != null) {
+      return parseInt(result.aggregateFields.total.integerValue, 10);
+    }
+    return 0;
+  }
+
+  _buildFilter({ field, op, value }) {
+    const opMap = {
+      '==': 'EQUAL',
+      '!=': 'NOT_EQUAL',
+      '>': 'GREATER_THAN',
+      '>=': 'GREATER_THAN_OR_EQUAL',
+      '<': 'LESS_THAN',
+      '<=': 'LESS_THAN_OR_EQUAL',
+      'in': 'IN',
+      'not-in': 'NOT_IN',
+      'array-contains': 'ARRAY_CONTAINS',
+      'array-contains-any': 'ARRAY_CONTAINS_ANY',
+    };
+
+    return {
+      fieldFilter: {
+        field: { fieldPath: field },
+        op: opMap[op] || 'EQUAL',
+        value: this._toFilterValue(value),
+      },
+    };
+  }
+
+  _toFilterValue(value) {
+    if (typeof value === 'string') return { stringValue: value };
+    if (typeof value === 'number') {
+      return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+    }
+    if (typeof value === 'boolean') return { booleanValue: value };
+    if (value === null) return { nullValue: null };
+    if (Array.isArray(value)) {
+      return { arrayValue: { values: value.map((v) => this._toFilterValue(v)) } };
+    }
+    if (value instanceof Date) return { timestampValue: value.toISOString() };
+    return { stringValue: String(value) };
+  }
+
   _docToObj(doc) {
     if (!doc || !doc.fields) return null;
     const result = {};

@@ -128,25 +128,19 @@ export default function ExamQuestions() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
           <button
-            className="btn-dhl ripple-btn"
+            className="btn-dhl is-outline"
             disabled={currentIndex === 0}
             onClick={handleBack}
-            style={{
-              background: 'transparent',
-              color: '#D40511',
-              border: '1.5px solid #D40511',
-              padding: '0.65rem 1.5rem',
-              opacity: currentIndex === 0 ? 0.4 : 1,
-            }}
+            style={{ opacity: currentIndex === 0 ? 0.4 : 1 }}
           >
             <i className="fas fa-arrow-left" style={{ fontSize: '0.78rem' }} />
             Voltar
           </button>
           <button
-            className="btn-dhl ripple-btn"
+            className="btn-dhl"
             disabled={!selected[currentIndex]}
             onClick={handleNext}
-            style={{ padding: '0.65rem 1.5rem', opacity: !selected[currentIndex] ? 0.5 : 1 }}
+            style={{ opacity: !selected[currentIndex] ? 0.5 : 1 }}
           >
             {currentIndex < questions.length - 1 ? 'Próxima' : 'Finalizar'}
             <i className="fas fa-arrow-right" style={{ fontSize: '0.78rem' }} />

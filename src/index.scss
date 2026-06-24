@@ -27,28 +27,6 @@ body {
   margin-top: auto;
 }
 
-.redux-toastr .toastr .close-toastr {
-  opacity: 1;
-  color: #fff;
-}
-
-.redux-toastr .toastr .rrt-left-container {
-  width: 75px;
-}
-
-.redux-toastr .toastr .rrt-left-container .toastr-icon {
-  width: 26px !important;
-  height: 26px !important;
-}
-
-.redux-toastr .toastr .rrt-middle-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  margin-left: 75px;
-  min-height: 70px;
-}
-
 .error {
   color: red;
 }

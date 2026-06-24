@@ -73,7 +73,7 @@ export default function Login() {
       <div className="login-form-panel">
         <div className="login-form-container">
           <div className="login-form-header">
-            <img src="/dhl-logo.png" alt="DHL" className="login-logo" />
+            <img src="/dhl-logo.png" alt="DHL" className="login-logo" loading="lazy" />
             <h2 className="login-form-title">Acessar</h2>
             <p className="login-form-desc">Informe suas credenciais para continuar</p>
           </div>

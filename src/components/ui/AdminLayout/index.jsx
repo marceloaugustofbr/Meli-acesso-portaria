@@ -5,6 +5,7 @@ import { Link, useHistory, useLocation } from 'react-router-dom';
 import { authService } from '../../../services';
 import { useAuth } from '../../../hooks';
 import ROUTES from '../../../constants/routes';
+import './AdminLayout.scss'; // eslint-disable-line
 
 const BASE_NAV = [
   { label: 'Dashboard', path: ROUTES.ADMIN_DASHBOARD },
@@ -25,49 +26,49 @@ export default function AdminLayout({ children }) {
 
   return (
     <div>
-      <nav className="navbar is-dark" role="navigation" aria-label="main navigation">
-        <div className="navbar-brand">
-          <Link className="navbar-item has-text-weight-bold" to={ROUTES.ADMIN_DASHBOARD}>
-            Safe Acess - DHL
-          </Link>
-          <a
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setMenuOpen((o) => !o); }}
-            className={classNames('navbar-burger', { 'is-active': menuOpen })}
-            onClick={() => setMenuOpen((o) => !o)}
-            aria-label="menu"
-            aria-expanded={menuOpen}
-          >
-            <span aria-hidden="true" />
-            <span aria-hidden="true" />
-            <span aria-hidden="true" />
-          </a>
-        </div>
-        <div className={classNames('navbar-menu', { 'is-active': menuOpen })}>
-          <div className="navbar-start">
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                className={classNames('navbar-item', { 'is-active': location.pathname === item.path })}
-                to={item.path}
-                onClick={() => setMenuOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
+      <nav className="admin-navbar" role="navigation" aria-label="main navigation">
+        <div className="admin-navbar-inner">
+          <div className="admin-navbar-brand">
+            <Link className="admin-navbar-logo" to={ROUTES.ADMIN_DASHBOARD}>
+              <img src="/LOGOSAFEACESS.webp" alt="Safe Acess" className="admin-navbar-logo-img" />
+            </Link>
+            <button
+              className={classNames('admin-navbar-toggle', { 'is-active': menuOpen })}
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label="menu"
+              aria-expanded={menuOpen}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
           </div>
-          <div className="navbar-end">
-            <div className="navbar-item">
-              <button className="button is-light is-small" onClick={handleLogout}>
+          <div className={classNames('admin-navbar-menu', { 'is-active': menuOpen })}>
+            <div className="admin-navbar-links">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  className={classNames('admin-navbar-link', { 'is-active': location.pathname === item.path })}
+                  to={item.path}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {item.path === ROUTES.ADMIN_DASHBOARD && <i className="fas fa-chart-simple" />}
+                  {item.path === ROUTES.ADMIN_USERS && <i className="fas fa-users" />}
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            <div className="admin-navbar-actions">
+              <button className="admin-navbar-logout" onClick={handleLogout}>
+                <i className="fas fa-right-from-bracket" />
                 Sair
               </button>
             </div>
           </div>
         </div>
       </nav>
-      <main className="section">
-        <div className="container">{children}</div>
+      <main className="admin-main">
+        {children}
       </main>
     </div>
   );

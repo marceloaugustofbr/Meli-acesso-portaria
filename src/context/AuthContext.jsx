@@ -1,10 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { authService } from '../services';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8787';
+const ADMIN_CACHE_KEY = 'sa-admin-cache';
 
 const AuthContext = createContext(null);
+
+function getCachedAdmin(uid) {
+  try {
+    const raw = localStorage.getItem(ADMIN_CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data.uid === uid && data.cachedAt && Date.now() - data.cachedAt < 10 * 60 * 1000) {
+      return data.isAdmin;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function setCachedAdmin(uid, isAdmin) {
+  try {
+    localStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({ uid, isAdmin, cachedAt: Date.now() }));
+  } catch { /* ignore */ }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -16,41 +35,42 @@ export function AuthProvider({ children }) {
     const unsubscribe = authService.onAuthChanged(async (firebaseUser) => {
       if (firebaseUser) {
         let admin = false;
-        try {
-          const tokenResult = await firebaseUser.getIdTokenResult();
-          admin = tokenResult.claims.isAdmin === true;
-        } catch {
-          // fallback silencioso
+
+        const cached = getCachedAdmin(firebaseUser.uid);
+        if (cached !== null) {
+          admin = cached;
         }
 
-        if (cancelled) return;
-
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-        });
-
         try {
-          const token = await firebaseUser.getIdToken();
-          const resp = await fetch(`${API_BASE}/api/admin/me`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            admin = data.isAdmin;
+          const tokenResult = await firebaseUser.getIdTokenResult();
+          if (!cancelled) {
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+            });
+          }
+
+          const serverAdmin = await fetch(`${API_BASE}/api/admin/me`, {
+            headers: { Authorization: `Bearer ${tokenResult.token}` },
+          }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+          if (serverAdmin) {
+            admin = serverAdmin.isAdmin;
           }
         } catch {
-          // fallback silencioso para o valor do custom claim
+          // fallback para custom claim ou cache
         }
 
         if (!cancelled) {
+          setCachedAdmin(firebaseUser.uid, admin);
           setIsAdmin(admin);
           setLoading(false);
         }
         return;
       }
 
+      localStorage.removeItem(ADMIN_CACHE_KEY);
       if (!cancelled) {
         setUser(null);
         setIsAdmin(false);
@@ -64,7 +84,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const value = { user, loading, isAuthenticated: !!user, isAdmin };
+  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, isAdmin }), [user, loading, isAdmin]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

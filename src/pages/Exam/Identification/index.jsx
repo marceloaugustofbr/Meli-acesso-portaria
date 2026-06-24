@@ -17,7 +17,6 @@ import CITIES from '../../../constants/cities';
 export default function ExamIdentification() {
   const history = useHistory();
   const setIdentification = useExamStore((s) => s.setIdentification);
-  const setStartTime = useExamStore((s) => s.setStartTime);
   const setStep = useExamStore((s) => s.setStep);
   const storedCpf = useExamStore((s) => s.cpf);
   const [cpfBlocked, setCpfBlocked] = useState('');
@@ -88,9 +87,8 @@ export default function ExamIdentification() {
     }
     const normalized = { ...data, name: normalizeName(data.name) };
     setIdentification(normalized);
-    setStartTime(new Date().toISOString());
-    setStep('questions');
-    history.push(ROUTES.EXAM_QUESTIONS);
+    setStep('video');
+    history.push(ROUTES.EXAM_VIDEO);
   };
 
   return (
@@ -168,8 +166,7 @@ export default function ExamIdentification() {
 
           <button
             type="submit"
-            className={classNames('btn-dhl ripple-btn', { 'is-loading': isSubmitting })}
-            style={{ width: '100%', justifyContent: 'center', padding: '0.85rem' }}
+            className={classNames('btn-dhl is-fullwidth', { 'is-loading': isSubmitting })}
           >
             Continuar
           </button>

@@ -54,6 +54,7 @@ function sanitize(str) {
 // Rate limiter simples (in-memory, por isolate do Worker)
 const rateLimitStore = new Map();
 const RATE_LIMIT_WINDOW = 60000;
+let rateLimitCleanupCounter = 0;
 
 function checkRateLimit(ip, key, maxRequests) {
   const now = Date.now();
@@ -61,6 +62,14 @@ function checkRateLimit(ip, key, maxRequests) {
   const entry = rateLimitStore.get(storeKey);
   if (!entry || now > entry.windowStart + RATE_LIMIT_WINDOW) {
     rateLimitStore.set(storeKey, { count: 1, windowStart: now });
+    rateLimitCleanupCounter++;
+    if (rateLimitCleanupCounter % 50 === 0) {
+      for (const [k, v] of rateLimitStore) {
+        if (now > v.windowStart + RATE_LIMIT_WINDOW) {
+          rateLimitStore.delete(k);
+        }
+      }
+    }
     return true;
   }
   if (entry.count >= maxRequests) {
@@ -602,21 +611,31 @@ async function handleCreateExam(request, db, env) {
     const cooldown = 5 * 60 * 1000;
     if (elapsed < cooldown) {
       const remaining = Math.ceil((cooldown - elapsed) / 60000);
-      return error(`Aguarde ${remaining} minuto(s) para refazer a prova.`, 429);
+      return json({
+        error: `Aguarde ${remaining} minuto(s) para refazer a prova.`,
+        attempts: existing.attempts || 0,
+        remaining,
+      }, 429);
     }
   }
 
-  // Busca TODAS as questões COM correctAnswer (server-side)
-  const allQuestions = await db.listCollection('questions');
+  // Valida duração máxima de 40 minutos
+  if (data.startTime) {
+    const elapsed = Date.now() - new Date(data.startTime).getTime();
+    const maxDuration = 40 * 60 * 1000;
+    if (elapsed > maxDuration) {
+      return error('Tempo limite excedido. A prova deve ser concluída em até 40 minutos.', 403);
+    }
+  }
+
+  // Busca APENAS as questões respondidas (com correctAnswer, server-side)
+  const answeredIds = [...new Set((data.answers || []).map((a) => a.questionId).filter(Boolean))];
+  const questionDocs = await Promise.all(
+    answeredIds.map((id) => db.getDocument('questions', id).catch(() => null))
+  );
   const questionsMap = {};
-  allQuestions.forEach((doc) => {
-    const id = doc.name.split('/').pop();
-    questionsMap[id] = {
-      question: doc.fields.question.stringValue,
-      options: doc.fields.options.arrayValue.values.map((v) => v.stringValue),
-      correctAnswer: doc.fields.correctAnswer.stringValue,
-      category: doc.fields.category.stringValue,
-    };
+  answeredIds.forEach((id, i) => {
+    if (questionDocs[i]) questionsMap[id] = questionDocs[i];
   });
 
   // Valida respostas e calcula nota NO SERVIDOR
@@ -671,7 +690,7 @@ async function handleCreateExam(request, db, env) {
 
   await db.setDocument('latest_exams', cpfDigits, examDoc);
 
-  return json({ id: cpfDigits, status: computedStatus, percentage, score: correctCount });
+  return json({ id: cpfDigits, status: computedStatus, percentage, score: correctCount, attempts: examDoc.attempts });
 }
 
 // 5. Buscar exame por CPF (portaria via HMAC ou admin via Firebase)
@@ -729,45 +748,65 @@ async function handleListExams(request, db, env) {
   const url = new URL(request.url);
   const params = url.searchParams;
 
-  let allDocs = await db.listCollectionObjects('latest_exams');
-
-  // Filtro automático por cidades que o admin gerencia
   const adminCities = admin.cities || [];
   const requestedCity = params.get('city');
-  if (adminCities.length > 0) {
-    allDocs = allDocs.filter((d) => adminCities.includes(d.city));
-  }
-  if (requestedCity && adminCities.includes(requestedCity)) {
-    allDocs = allDocs.filter((d) => d.city === requestedCity);
-  } else if (requestedCity) {
-    allDocs = allDocs.filter((d) => d.city === requestedCity);
-  }
-  if (params.get('status')) {
-    allDocs = allDocs.filter((d) => d.status === params.get('status'));
-  }
-  if (params.get('name')) {
-    const nameFilter = params.get('name').toUpperCase();
-    allDocs = allDocs.filter((d) => (d.name || '').toUpperCase().includes(nameFilter));
-  }
-  if (params.get('operationType')) {
-    allDocs = allDocs.filter((d) => d.operationType === params.get('operationType'));
-  }
-
-  allDocs.sort((a, b) => {
-    const aTime = a.createdAt || '0';
-    const bTime = b.createdAt || '0';
-    return bTime.localeCompare(aTime);
-  });
-
+  const requestedStatus = params.get('status');
+  const requestedName = params.get('name');
+  const requestedType = params.get('operationType');
   const pageSize = parseInt(params.get('pageSize') || '20', 10);
   const page = parseInt(params.get('page') || '0', 10);
-  const start = page * pageSize;
-  const pageDocs = allDocs.slice(start, start + pageSize);
+
+  const filters = [];
+
+  if (adminCities.length > 0 && requestedCity && adminCities.includes(requestedCity)) {
+    filters.push({ field: 'city', op: '==', value: requestedCity });
+  } else if (adminCities.length > 0 && !requestedCity) {
+    filters.push({ field: 'city', op: 'in', value: adminCities });
+  } else if (requestedCity) {
+    filters.push({ field: 'city', op: '==', value: requestedCity });
+  }
+
+  if (requestedStatus) {
+    filters.push({ field: 'status', op: '==', value: requestedStatus });
+  }
+  if (requestedType) {
+    filters.push({ field: 'operationType', op: '==', value: requestedType });
+  }
+
+  const hasNameFilter = !!requestedName;
+
+  let docs;
+  let total;
+
+  if (hasNameFilter) {
+    const allMatching = await db.queryDocuments('latest_exams', {
+      filters,
+      orderBy: { field: 'createdAt', direction: 'DESCENDING' },
+    });
+    const nameUpper = requestedName.toUpperCase();
+    const filtered = allMatching.filter((d) => (d.name || '').toUpperCase().includes(nameUpper));
+    total = filtered.length;
+    const start = page * pageSize;
+    docs = filtered.slice(start, start + pageSize);
+  } else {
+    total = await db.countDocuments('latest_exams', filters);
+    docs = await db.queryDocuments('latest_exams', {
+      filters,
+      orderBy: { field: 'createdAt', direction: 'DESCENDING' },
+      limit: pageSize,
+      offset: page * pageSize,
+    });
+  }
+
+  const pageDocs = docs.map((d) => ({
+    id: extractCpfDigits(d.cpf || ''),
+    ...d,
+  }));
 
   return json({
     data: pageDocs,
-    hasMore: start + pageSize < allDocs.length,
-    total: allDocs.length,
+    hasMore: (page + 1) * pageSize < total,
+    total,
     page,
   });
 }
@@ -778,36 +817,55 @@ async function handleExportExams(request, db, env) {
   const url = new URL(request.url);
   const params = url.searchParams;
 
-  let allDocs = await db.listCollectionObjects('latest_exams');
-
   const adminCities = admin.cities || [];
   const requestedCity = params.get('city');
-  if (adminCities.length > 0) {
-    allDocs = allDocs.filter((d) => adminCities.includes(d.city));
-  }
-  if (requestedCity && adminCities.includes(requestedCity)) {
-    allDocs = allDocs.filter((d) => d.city === requestedCity);
+  const requestedStatus = params.get('status');
+  const requestedName = params.get('name');
+  const requestedType = params.get('operationType');
+  const dateStart = params.get('dateStart');
+  const dateEnd = params.get('dateEnd');
+
+  const filters = [];
+
+  if (adminCities.length > 0 && requestedCity && adminCities.includes(requestedCity)) {
+    filters.push({ field: 'city', op: '==', value: requestedCity });
+  } else if (adminCities.length > 0 && !requestedCity) {
+    filters.push({ field: 'city', op: 'in', value: adminCities });
   } else if (requestedCity) {
-    allDocs = allDocs.filter((d) => d.city === requestedCity);
-  }
-  if (params.get('status')) {
-    allDocs = allDocs.filter((d) => d.status === params.get('status'));
-  }
-  if (params.get('name')) {
-    const nameFilter = params.get('name').toUpperCase();
-    allDocs = allDocs.filter((d) => (d.name || '').toUpperCase().includes(nameFilter));
-  }
-  if (params.get('operationType')) {
-    allDocs = allDocs.filter((d) => d.operationType === params.get('operationType'));
+    filters.push({ field: 'city', op: '==', value: requestedCity });
   }
 
-  allDocs.sort((a, b) => {
-    const aTime = a.createdAt || '0';
-    const bTime = b.createdAt || '0';
-    return bTime.localeCompare(aTime);
+  if (requestedStatus) {
+    filters.push({ field: 'status', op: '==', value: requestedStatus });
+  }
+  if (requestedType) {
+    filters.push({ field: 'operationType', op: '==', value: requestedType });
+  }
+
+  let docs = await db.queryDocuments('latest_exams', {
+    filters,
+    orderBy: { field: 'createdAt', direction: 'DESCENDING' },
   });
 
-  return json({ data: allDocs, total: allDocs.length });
+  if (requestedName) {
+    const nameUpper = requestedName.toUpperCase();
+    docs = docs.filter((d) => (d.name || '').toUpperCase().includes(nameUpper));
+  }
+  if (dateStart) {
+    const start = new Date(dateStart);
+    docs = docs.filter((d) => d.createdAt && new Date(d.createdAt) >= start);
+  }
+  if (dateEnd) {
+    const end = new Date(dateEnd);
+    end.setHours(23, 59, 59, 999);
+    docs = docs.filter((d) => d.createdAt && new Date(d.createdAt) <= end);
+  }
+
+  const result = docs.map((d) => ({
+    id: extractCpfDigits(d.cpf || ''),
+    ...d,
+  }));
+  return json({ data: result, total: result.length });
 }
 
 // 8. Bloquear usuário (requer admin) (C-5)
@@ -852,42 +910,14 @@ async function handleGetAggregation(request, db, env) {
 
   // Se admin tem restrição de cidades, calcula on-the-fly
   if (adminCities.length > 0) {
-    const allDocs = await db.listCollectionObjects('latest_exams');
-    const filtered = allDocs.filter((d) => adminCities.includes(d.city));
-    const monthlyCounts = {};
-    const typeCounts = {};
-    const cpfSet = new Set();
-    let approvedCount = 0;
-    let reprovedCount = 0;
-
-    filtered.forEach((d) => {
-      const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
-      monthlyCounts[month] = (monthlyCounts[month] || 0) + 1;
-      const type = d.operationType || 'unknown';
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-      cpfSet.add(d.cpf);
-      if (d.status === 'approved') approvedCount += 1;
-      else if (d.status === 'reproved') reprovedCount += 1;
-    });
-
-    const totalPeople = cpfSet.size;
-    return json({
-      total: filtered.length,
-      totalPeople,
-      approvedPeople: approvedCount,
-      reprovedPeople: reprovedCount,
-      monthlyCounts,
-      typeCounts,
-      approvalRate: totalPeople > 0 ? Math.round((approvedCount / totalPeople) * 100) : 0,
-    });
+    const aggregation = await computeAggregation(db, admin);
+    return json(aggregation);
   }
 
   const doc = await db.getDocument('aggregations', 'examStats');
   if (!doc) {
-    return json({
-      total: 0, totalPeople: 0, approvedPeople: 0, reprovedPeople: 0,
-      monthlyCounts: {}, typeCounts: {}, approvalRate: 0,
-    });
+    const aggregation = await computeAggregation(db, admin);
+    return json(aggregation);
   }
 
   const aggregation = {
@@ -895,6 +925,7 @@ async function handleGetAggregation(request, db, env) {
     totalPeople: doc.totalPeople ?? 0,
     approvedPeople: doc.approvedPeople ?? 0,
     reprovedPeople: doc.reprovedPeople ?? 0,
+    blockedPeople: doc.blockedPeople ?? 0,
     monthlyCounts: doc.monthlyCounts ?? {},
     typeCounts: doc.typeCounts ?? {},
   };
@@ -907,21 +938,24 @@ async function handleGetAggregation(request, db, env) {
   });
 }
 
-// 11. Recalcular agregação (admin)
-async function handleRecalculate(request, db, env) {
-  const admin = await requireAdmin(request, env, db);
-
-  const allDocs = await db.listCollectionObjects('latest_exams');
+// 10b. Calcular agregação (usada internamente)
+async function computeAggregation(db, admin) {
   const adminCities = admin.cities || [];
-  const docs = adminCities.length > 0
-    ? allDocs.filter((d) => adminCities.includes(d.city))
-    : allDocs;
+  const filters = adminCities.length > 0
+    ? [{ field: 'city', op: 'in', value: adminCities }]
+    : [];
+
+  const docs = await db.queryDocuments('latest_exams', {
+    filters,
+    orderBy: { field: 'createdAt', direction: 'DESCENDING' },
+  });
 
   const monthlyCounts = {};
   const typeCounts = {};
   const cpfSet = new Set();
-  let approvedCount = 0;
-  let reprovedCount = 0;
+  const approvedSet = new Set();
+  const reprovedSet = new Set();
+  const blockedSet = new Set();
 
   docs.forEach((d) => {
     const month = d.createdAt ? d.createdAt.substring(0, 7) : 'unknown';
@@ -931,20 +965,44 @@ async function handleRecalculate(request, db, env) {
     typeCounts[type] = (typeCounts[type] || 0) + 1;
 
     cpfSet.add(d.cpf);
-    if (d.status === 'approved') approvedCount += 1;
-    else if (d.status === 'reproved') reprovedCount += 1;
+    if (d.status === 'approved') approvedSet.add(d.cpf);
+    else if (d.status === 'reproved') reprovedSet.add(d.cpf);
+    else if (d.status === 'blocked') blockedSet.add(d.cpf);
   });
 
-  await db.setDocument('aggregations', 'examStats', {
+  const totalPeople = cpfSet.size;
+
+  return {
     total: docs.length,
-    totalPeople: cpfSet.size,
-    approvedPeople: approvedCount,
-    reprovedPeople: reprovedCount,
+    totalPeople,
+    approvedPeople: approvedSet.size,
+    reprovedPeople: reprovedSet.size,
+    blockedPeople: blockedSet.size,
     monthlyCounts,
     typeCounts,
+    approvalRate: totalPeople > 0
+      ? Math.round((approvedSet.size / totalPeople) * 100)
+      : 0,
+  };
+}
+
+// 11. Recalcular agregação (admin)
+async function handleRecalculate(request, db, env) {
+  const admin = await requireAdmin(request, env, db);
+
+  const aggregation = await computeAggregation(db, admin);
+
+  await db.setDocument('aggregations', 'examStats', {
+    total: aggregation.total,
+    totalPeople: aggregation.totalPeople,
+    approvedPeople: aggregation.approvedPeople,
+    reprovedPeople: aggregation.reprovedPeople,
+    blockedPeople: aggregation.blockedPeople,
+    monthlyCounts: aggregation.monthlyCounts,
+    typeCounts: aggregation.typeCounts,
   });
 
-  return json({ total: docs.length, totalPeople: cpfSet.size });
+  return json({ total: aggregation.total, totalPeople: aggregation.totalPeople });
 }
 
 // 12. Cloudinary signed upload (admin apenas)

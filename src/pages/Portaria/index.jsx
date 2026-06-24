@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { examService, apiService } from '../../services';
 import { maskCPF, formatCPF, validateCPF } from '../../utils/cpf';
+import './Portaria.css';
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 30000;
@@ -307,47 +308,25 @@ export default function Portaria() {
 
   if (!authorized) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        background: '#f5f5f5',
-        fontFamily: "'Nunito', sans-serif",
-      }}>
-        <form onSubmit={handlePinSubmit} style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: 32,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-          width: '100%',
-          maxWidth: 360,
-          textAlign: 'center',
-        }}>
-          <i className="fas fa-lock" style={{ fontSize: '2rem', color: '#D40511', marginBottom: 16 }} />
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#D40511', margin: '0 0 4px' }}>
-            Acesso Restrito
-          </h1>
-          <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 20px' }}>
-            Informe a senha de acesso à portaria
-          </p>
+      <div className="portaria-wrapper" style={{ background: '#f5f5f5' }}>
+        <form onSubmit={handlePinSubmit} className="portaria-card" style={{ textAlign: 'center' }}>
+          <div className="portaria-pin-icon"><i className="fas fa-lock" /></div>
+          <h1 className="portaria-pin-title">Acesso Restrito</h1>
+          <p className="portaria-pin-subtitle">Informe a senha de acesso à portaria</p>
           <input
             type="password"
-            className="input is-medium"
+            className="input is-medium portaria-pin-input"
             placeholder={locked ? `Bloqueado por ${lockTimer}s` : 'Senha'}
             value={accessPin}
             onChange={(e) => { setAccessPin(e.target.value); setPinError(''); }}
             disabled={locked}
             autoFocus // eslint-disable-line jsx-a11y/no-autofocus
-            style={{ textAlign: 'center', marginBottom: 12 }}
           />
-          {pinError && <p style={{ fontSize: '0.8rem', color: '#D32F2F', margin: '0 0 12px' }}>{pinError}</p>}
+          {pinError && <p className="portaria-pin-error">{pinError}</p>}
           <button
             type="submit"
-            className={`button is-medium is-fullwidth ${pinLoading ? 'is-loading' : ''}`}
+            className={`btn-dhl is-fullwidth${pinLoading ? ' is-loading' : ''}`}
             disabled={pinLoading || locked}
-            style={{ background: '#D40511', color: '#fff', border: 'none' }}
           >
             Acessar
           </button>
@@ -360,61 +339,40 @@ export default function Portaria() {
     <>
       <style>{`
         .portaria-bg {
-          background: url('/wallpaper-pc.webp') center/cover no-repeat !important;
+          background: url('/wallpaper-pc-opt.webp') center/cover no-repeat !important;
         }
         @media (max-width: 768px) {
           .portaria-bg {
-            background: url('/wallpaper2.jpg') center/cover no-repeat !important;
+            background: url('/wallpaper2-opt.webp') center/cover no-repeat !important;
           }
         }
         @keyframes portaria-spin {
           to { transform: rotate(360deg); }
         }
       `}</style>
-    <div className="portaria-bg" style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 16,
-      fontFamily: "'Nunito', sans-serif",
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 420,
-        background: '#fff',
-        borderRadius: 20,
-        padding: 32,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ textAlign: 'right', marginBottom: 6 }}>
+    <div className="portaria-bg portaria-wrapper">
+      <div className="portaria-card">
+        <div className="portaria-card-header">
+          <div className="portaria-card-header-top">
             <button
-              className="button is-small is-light"
+              className="btn-dhl is-small is-ghost"
               onClick={() => { sessionStorage.removeItem('portaria_auth'); setAuthorized(false); setResult(null); setExamData(null); }}
-              style={{ fontSize: '0.7rem' }}
             >
-              <i className="fas fa-sign-out-alt" style={{ marginRight: 4 }} /> Sair
+              <i className="fas fa-sign-out-alt" /> Sair
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
-            <img src="/dhl-logo.png" alt="DHL" style={{ height: 32 }} />
-            <div style={{ textAlign: 'left' }}>
-              <h1 style={{ fontSize: '1rem', fontWeight: 700, color: '#D40511', margin: 0, lineHeight: 1.2 }}>
-                Consulta de Liberação
-              </h1>
-              <p style={{ fontSize: '0.7rem', color: '#999', margin: 0 }}>
-                Portaria
-              </p>
+          <div className="portaria-logo-row">
+            <img src="/dhl-logo.png" alt="DHL" loading="lazy" />
+            <div className="portaria-logo-text">
+              <h1 className="portaria-logo-title">Consulta de Liberação</h1>
+              <p className="portaria-logo-sub">Portaria</p>
             </div>
           </div>
         </div>
 
         {!result && !showScanner && !scanLoading && (
           <div className="field">
-            <label className="label" style={{ fontSize: '0.85rem', color: '#555' }}>
-              Digite o CPF do colaborador
-            </label>
+            <label className="portaria-cpf-label">Digite o CPF do colaborador</label>
             <div className="control has-icons-left">
               <input
                 ref={cpfRef}
@@ -434,40 +392,28 @@ export default function Portaria() {
         )}
 
         {!result && !showScanner && !scanLoading && (
-          <>
+          <div className="portaria-btn-row">
             <button
-              className={`button is-medium is-fullwidth ${checking ? 'is-loading' : ''}`}
+              className={`btn-dhl is-fullwidth${checking ? ' is-loading' : ''}`}
               disabled={cpf.replace(/\D/g, '').length !== 11 || !!cpfError || checking}
               onClick={handleCheck}
-              style={{ borderRadius: 8, marginTop: 8, background: '#D40511', color: '#fff', border: 'none' }}
             >
               Consultar
             </button>
             <button
-              className="button is-medium is-fullwidth"
+              className="btn-dhl is-fullwidth is-outline"
               onClick={() => setShowScanner(true)}
-              style={{ borderRadius: 8, marginTop: 8, background: '#fff', color: '#D40511', border: '1px solid #D40511' }}
             >
-              <i className="fas fa-camera" style={{ marginRight: 8 }} />
+              <i className="fas fa-camera" />
               Ler QR Code
             </button>
-          </>
+          </div>
         )}
 
         {scanLoading && checking && (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{
-              width: 48,
-              height: 48,
-              border: '4px solid #eee',
-              borderTopColor: '#D40511',
-              borderRadius: '50%',
-              animation: 'portaria-spin 0.8s linear infinite',
-              margin: '0 auto 16px',
-            }} />
-            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#555', margin: 0 }}>
-              Consultando...
-            </p>
+          <div className="portaria-loading">
+            <div className="portaria-spinner" />
+            <p className="portaria-loading-text">Consultando...</p>
           </div>
         )}
 
@@ -592,218 +538,133 @@ export default function Portaria() {
         )}
 
         {result === 'liberado' && examData && (
-          <div style={{
-            background: '#f0fdf4',
-            border: '2px solid #22c55e',
-            borderRadius: 16,
-            padding: '24px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', background: '#dcfce7',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-            }}>
-              <i className="fas fa-check-circle" style={{ fontSize: '2rem', color: '#16a34a' }} />
+          <div className="portaria-result-card is-approved">
+            <div className="portaria-result-icon approved">
+              <i className="fas fa-check-circle" />
             </div>
-            <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#16a34a', margin: 0, letterSpacing: 1 }}>
-              LIBERADO
-            </p>
-            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e', margin: '10px 0 2px' }}>
-              {examData.name?.toUpperCase()}
-            </p>
-            <p style={{ fontSize: '0.82rem', color: '#666', margin: 0 }}>
-              {maskCPF(examData.cpf || cpf)}
-            </p>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14,
-              background: '#fff', borderRadius: 10, padding: '10px 12px',
-            }}>
+            <p className="portaria-result-status approved">LIBERADO</p>
+            <p className="portaria-result-name">{examData.name?.toUpperCase()}</p>
+            <p className="portaria-result-cpf">{maskCPF(examData.cpf || cpf)}</p>
+            <div className="portaria-result-details">
               <div>
-                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Cidade</p>
-                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.city}</p>
+                <p className="portaria-result-detail-label">Cidade</p>
+                <p className="portaria-result-detail-value">{examData.city}</p>
               </div>
               <div>
-                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Empresa</p>
-                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.operationType}</p>
+                <p className="portaria-result-detail-label">Empresa</p>
+                <p className="portaria-result-detail-value">{examData.operationType}</p>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+            <div className="portaria-result-stats">
               <div>
-                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Nota</p>
-                <p style={{ fontWeight: 700, fontSize: '1rem', margin: '2px 0 0', color: '#16a34a' }}>
+                <p className="portaria-result-stat-label">Nota</p>
+                <p className="portaria-result-stat-value approved">
                   {examData.percentage != null ? (examData.percentage / 10).toFixed(1) : '-'}
                 </p>
               </div>
               <div>
-                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Data da liberação</p>
-                <p style={{ fontWeight: 600, fontSize: '0.82rem', margin: '2px 0 0', color: '#555' }}>
+                <p className="portaria-result-stat-label">Data da liberação</p>
+                <p className="portaria-result-stat-value" style={{ color: '#555' }}>
                   {examData.createdAt ? new Date(examData.createdAt).toLocaleDateString('pt-BR') : '-'}
                 </p>
               </div>
             </div>
-            <button
-              className="button is-medium is-fullwidth"
-              onClick={handleNewCheck}
-              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
-            >
-              Nova Consulta
-            </button>
+            <div className="portaria-result-btn">
+              <button className="btn-dhl is-fullwidth" onClick={handleNewCheck}>
+                Nova Consulta
+              </button>
+            </div>
           </div>
         )}
 
         {result === 'reprovado' && examData && (
-          <div style={{
-            background: '#fef2f2',
-            border: '2px solid #ef4444',
-            borderRadius: 16,
-            padding: '24px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', background: '#fee2e2',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-            }}>
-              <i className="fas fa-times-circle" style={{ fontSize: '2rem', color: '#dc2626' }} />
+          <div className="portaria-result-card is-reproved">
+            <div className="portaria-result-icon reproved">
+              <i className="fas fa-times-circle" />
             </div>
-            <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#dc2626', margin: 0, letterSpacing: 1 }}>
-              REPROVADO
-            </p>
-            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e', margin: '10px 0 2px' }}>
-              {examData.name?.toUpperCase()}
-            </p>
-            <p style={{ fontSize: '0.82rem', color: '#666', margin: 0 }}>
-              {maskCPF(examData.cpf || cpf)}
-            </p>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14,
-              background: '#fff', borderRadius: 10, padding: '10px 12px',
-            }}>
+            <p className="portaria-result-status reproved">REPROVADO</p>
+            <p className="portaria-result-name">{examData.name?.toUpperCase()}</p>
+            <p className="portaria-result-cpf">{maskCPF(examData.cpf || cpf)}</p>
+            <div className="portaria-result-details">
               <div>
-                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Cidade</p>
-                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.city}</p>
+                <p className="portaria-result-detail-label">Cidade</p>
+                <p className="portaria-result-detail-value">{examData.city}</p>
               </div>
               <div>
-                <p style={{ fontSize: '0.65rem', color: '#999', margin: 0 }}>Empresa</p>
-                <p style={{ fontWeight: 600, fontSize: '0.85rem', margin: '2px 0 0', color: '#333' }}>{examData.operationType}</p>
+                <p className="portaria-result-detail-label">Empresa</p>
+                <p className="portaria-result-detail-value">{examData.operationType}</p>
               </div>
             </div>
-            <button
-              className="button is-medium is-fullwidth"
-              onClick={handleNewCheck}
-              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
-            >
-              Nova Consulta
-            </button>
+            <div className="portaria-result-btn">
+              <button className="btn-dhl is-fullwidth" onClick={handleNewCheck}>
+                Nova Consulta
+              </button>
+            </div>
           </div>
         )}
 
         {result === 'bloqueado' && examData && (
-          <div style={{
-            background: '#fff7ed',
-            border: '2px solid #f97316',
-            borderRadius: 16,
-            padding: '24px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', background: '#ffedd5',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-            }}>
-              <i className="fas fa-ban" style={{ fontSize: '2rem', color: '#ea580c' }} />
+          <div className="portaria-result-card is-blocked">
+            <div className="portaria-result-icon blocked">
+              <i className="fas fa-ban" />
             </div>
-            <p style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ea580c', margin: 0, letterSpacing: 1 }}>
-              BLOQUEADO
-            </p>
-            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e', margin: '10px 0 2px' }}>
-              {examData.name?.toUpperCase()}
-            </p>
-            <p style={{ fontSize: '0.82rem', color: '#666', margin: 0 }}>
-              {maskCPF(examData.cpf || cpf)}
-            </p>
-            <div style={{
-              background: '#fff', borderRadius: 10, padding: '10px 12px', marginTop: 14, textAlign: 'left',
-            }}>
-              <p style={{ fontSize: '0.7rem', color: '#ea580c', fontWeight: 700, margin: '0 0 4px' }}>
-                <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+            <p className="portaria-result-status blocked">BLOQUEADO</p>
+            <p className="portaria-result-name">{examData.name?.toUpperCase()}</p>
+            <p className="portaria-result-cpf">{maskCPF(examData.cpf || cpf)}</p>
+            <div className="portaria-block-reason">
+              <p className="portaria-block-reason-header">
+                <i className="fas fa-info-circle" />
                 Motivo do bloqueio
               </p>
-              <p style={{ fontSize: '0.85rem', color: '#333', margin: 0, lineHeight: 1.5 }}>
+              <p className="portaria-block-reason-text">
                 {examData.blockReason || 'Não informado'}
               </p>
               {examData.blockedAt && (
-                <p style={{ fontSize: '0.7rem', color: '#999', marginTop: 6 }}>
+                <p className="portaria-block-date">
                   {new Date(examData.blockedAt).toLocaleString('pt-BR')}
                   {examData.blockedBy ? ` por ${examData.blockedBy}` : ''}
                 </p>
               )}
             </div>
-            <button
-              className="button is-medium is-fullwidth"
-              onClick={handleNewCheck}
-              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
-            >
-              Nova Consulta
-            </button>
+            <div className="portaria-result-btn">
+              <button className="btn-dhl is-fullwidth" onClick={handleNewCheck}>
+                Nova Consulta
+              </button>
+            </div>
           </div>
         )}
 
         {result === 'nao_encontrado' && (
-          <div style={{
-            background: '#fefce8',
-            border: '2px solid #eab308',
-            borderRadius: 16,
-            padding: '24px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', background: '#fef9c3',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-            }}>
-              <i className="fas fa-user-slash" style={{ fontSize: '1.8rem', color: '#ca8a04' }} />
+          <div className="portaria-result-card is-notfound">
+            <div className="portaria-result-icon notfound">
+              <i className="fas fa-user-slash" />
             </div>
-            <p style={{ fontSize: '1.4rem', fontWeight: 800, color: '#a16207', margin: 0 }}>
-              NÃO ENCONTRADO
-            </p>
-            <p style={{ fontSize: '0.85rem', color: '#666', margin: '10px 0 0' }}>
+            <p className="portaria-result-status notfound">NÃO ENCONTRADO</p>
+            <p className="portaria-result-message">
               CPF {formatCPF(cpf)} não possui registro de treinamento.
             </p>
-            <button
-              className="button is-medium is-fullwidth"
-              onClick={handleNewCheck}
-              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
-            >
-              Nova Consulta
-            </button>
+            <div className="portaria-result-btn">
+              <button className="btn-dhl is-fullwidth" onClick={handleNewCheck}>
+                Nova Consulta
+              </button>
+            </div>
           </div>
         )}
 
         {result === 'erro' && (
-          <div style={{
-            background: '#fef2f2',
-            border: '2px solid #fca5a5',
-            borderRadius: 16,
-            padding: '24px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', background: '#fee2e2',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-            }}>
-              <i className="fas fa-exclamation-triangle" style={{ fontSize: '1.8rem', color: '#dc2626' }} />
+          <div className="portaria-result-card is-error">
+            <div className="portaria-result-icon errored">
+              <i className="fas fa-exclamation-triangle" />
             </div>
-            <p style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626', margin: 0 }}>
-              Erro na consulta
-            </p>
-            <p style={{ fontSize: '0.85rem', color: '#666', margin: '10px 0 0' }}>
+            <p className="portaria-result-status error">Erro na consulta</p>
+            <p className="portaria-result-message">
               Tente novamente em alguns instantes.
             </p>
-            <button
-              className="button is-medium is-fullwidth"
-              onClick={handleNewCheck}
-              style={{ borderRadius: 10, marginTop: 16, background: '#D40511', color: '#fff', border: 'none', fontWeight: 600 }}
-            >
-              Tentar Novamente
-            </button>
+            <div className="portaria-result-btn">
+              <button className="btn-dhl is-fullwidth" onClick={handleNewCheck}>
+                Tentar Novamente
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useExamStore } from '../../../store';
 import ROUTES from '../../../constants/routes';
@@ -15,6 +15,11 @@ export default function ExamVideo() {
   const videoFinished = useExamStore((s) => s.videoFinished);
   const setVideoFinished = useExamStore((s) => s.setVideoFinished);
   const setStep = useExamStore((s) => s.setStep);
+  const setStartTime = useExamStore((s) => s.setStartTime);
+
+  useEffect(() => {
+    setStartTime(new Date().toISOString());
+  }, [setStartTime]);
 
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
@@ -46,8 +51,8 @@ export default function ExamVideo() {
   };
 
   const handleContinue = () => {
-    setStep('identification');
-    history.push(ROUTES.EXAM_IDENTIFICATION);
+    setStep('questions');
+    history.push(ROUTES.EXAM_QUESTIONS);
   };
 
   const canContinue = videoFinished || progress >= MIN_PROGRESS;
@@ -112,23 +117,14 @@ export default function ExamVideo() {
           </div>
           <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
             <button
-              className="button is-fullwidth-mobile"
+              className="btn-dhl"
               disabled={!canContinue}
               onClick={handleContinue}
-              style={{
-                background: canContinue ? '#D40511' : '#ccc',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '0.85rem 2rem',
-                fontWeight: 600,
-                fontSize: '1rem',
-                transition: 'background 0.3s ease',
-                minWidth: 200,
-              }}
+              style={{ opacity: !canContinue ? 0.5 : 1 }}
             >
               Continuar
             </button>
+
           </div>
         </div>
       </div>

@@ -2,9 +2,11 @@ import React, { Suspense, lazy } from 'react';
 import { Route, Switch, BrowserRouter, Redirect } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ROUTES from '../../constants/routes';
-import ProtectedRoute from '../../components/ui/ProtectedRoute';
 import ExamGuard from '../../components/ui/ExamGuard';
+import AdminLayout from '../../components/ui/AdminLayout';
 import Loading from '../../components/ui/Loading';
+import ErrorBoundary from '../../components/ui/ErrorBoundary';
+import { useAuth } from '../../hooks';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,11 +28,12 @@ const ExamQuestions = lazy(() => import('../Exam/Questions'));
 const ExamTerms = lazy(() => import('../Exam/Terms'));
 const ExamSignature = lazy(() => import('../Exam/Signature'));
 const ExamResult = lazy(() => import('../Exam/Result'));
+const Portaria = lazy(() => import('../Portaria'));
+
 const AdminDashboard = lazy(() => import('../Admin/Dashboard'));
 const AdminExamDetail = lazy(() => import('../Admin/ExamDetail'));
 const AdminUsers = lazy(() => import('../Admin/Users'));
 const AdminSettings = lazy(() => import('../Admin/Settings'));
-const Portaria = lazy(() => import('../Portaria'));
 
 const stepRoutes = [
   { path: ROUTES.EXAM_CHECK, step: 'check', component: ExamCheck },
@@ -43,36 +46,52 @@ const stepRoutes = [
   { path: ROUTES.EXAM_RESULT, step: 'result', component: ExamResult },
 ];
 
-function LoadingFallback() {
-  return <Loading fullPage />;
+function AdminGuard({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <Loading fullPage />;
+  if (!isAuthenticated) return <Redirect to={ROUTES.LOGIN} />;
+  return <AdminLayout>{children}</AdminLayout>;
+}
+
+function AdminRoutes() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}><Loading /></div>}>
+      <Switch>
+        <Route exact path={ROUTES.ADMIN_DASHBOARD} component={AdminDashboard} />
+        <Route exact path={ROUTES.ADMIN_EXAM_DETAIL} component={AdminExamDetail} />
+        <Route exact path={ROUTES.ADMIN_USERS} component={AdminUsers} />
+        <Route exact path={ROUTES.ADMIN_SETTINGS} component={AdminSettings} />
+        <Redirect to={ROUTES.ADMIN_DASHBOARD} />
+      </Switch>
+    </Suspense>
+  );
 }
 
 export default function RouterComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Suspense fallback={<LoadingFallback />}>
-          <Switch>
-            <Route exact path={ROUTES.LOGIN} component={Login} />
-            <Route exact path={ROUTES.PORTARIA} component={Portaria} />
+        <ErrorBoundary>
+          <Suspense fallback={<Loading fullPage />}>
+            <Switch>
+              <Route exact path={ROUTES.LOGIN} component={Login} />
+              <Route exact path={ROUTES.PORTARIA} component={Portaria} />
 
-            <ExamGuard exact path={ROUTES.EXAM_INTRO} step="intro" component={ExamIntro} />
-            {stepRoutes.map(({ path, step, component }) => (
-              <ExamGuard key={path} exact path={path} step={step} component={component} />
-            ))}
+              <ExamGuard exact path={ROUTES.EXAM_INTRO} step="intro" component={ExamIntro} />
+              {stepRoutes.map(({ path, step, component }) => (
+                <ExamGuard key={path} exact path={path} step={step} component={component} />
+              ))}
 
-            <ProtectedRoute exact path={ROUTES.ADMIN_DASHBOARD} component={AdminDashboard} />
-            <ProtectedRoute exact path={ROUTES.ADMIN_EXAM_DETAIL} component={AdminExamDetail} />
-            <ProtectedRoute exact path={ROUTES.ADMIN_USERS} component={AdminUsers} />
-            <ProtectedRoute exact path={ROUTES.ADMIN_SETTINGS} component={AdminSettings} />
+              <Route path="/admin" render={() => <AdminGuard><AdminRoutes /></AdminGuard>} />
 
-            <Route exact path={ROUTES.ROOT}>
-              <Redirect to={ROUTES.EXAM_INTRO} />
-            </Route>
+              <Route exact path={ROUTES.ROOT}>
+                <Redirect to={ROUTES.EXAM_INTRO} />
+              </Route>
 
-            <Route render={() => <Loading fullPage text="Página não encontrada" />} />
-          </Switch>
-        </Suspense>
+              <Route render={() => <Loading fullPage text="Página não encontrada" />} />
+            </Switch>
+          </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </QueryClientProvider>
   );

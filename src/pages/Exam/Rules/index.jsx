@@ -86,9 +86,8 @@ export default function ExamRules() {
 
         <div className="has-text-centered">
           <button
-            className="btn-dhl ripple-btn"
+            className="btn-dhl is-large"
             onClick={handleStart}
-            style={{ padding: '0.85rem 2.5rem', fontSize: '1rem' }}
           >
             <i className="fas fa-play" style={{ fontSize: '0.85rem' }} />
             ENTENDI, VAMOS COMEÇAR

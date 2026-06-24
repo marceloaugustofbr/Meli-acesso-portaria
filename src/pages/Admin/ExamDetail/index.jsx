@@ -1,7 +1,38 @@
 import React, { useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useExam } from '../../../hooks';
-import AdminLayout from '../../../components/ui/AdminLayout';
+
+function parseUserAgent(ua) {
+  let os = 'Desconhecido';
+  let type = 'PC';
+
+  const androidMatch = ua.match(/Android\s([\d.]+)/);
+  if (androidMatch) {
+    os = `Android ${androidMatch[1]}`;
+    type = /Mobile/i.test(ua) ? 'Mobile' : 'PC';
+    return `${os} (${type})`;
+  }
+
+  const iosMatch = ua.match(/(?:iPhone\sOS|iPad;\sCPU\sOS)\s([\d_]+)/);
+  if (iosMatch) {
+    os = `iOS ${iosMatch[1].replace(/_/g, '.')}`;
+    type = /Mobile/i.test(ua) && !/iPad/i.test(ua) ? 'Mobile' : 'PC';
+    return `${os} (${type})`;
+  }
+
+  if (/Windows\s(?:NT\s)?([\d.]+)/.test(ua)) {
+    const ver = ua.match(/Windows\s(?:NT\s)?([\d.]+)/)[1];
+    const names = { '10.0': '10', '6.3': '8.1', '6.2': '8', '6.1': '7', '6.0': 'Vista', '5.1': 'XP' };
+    os = `Windows ${names[ver] || ver}`;
+  } else if (/Mac\sOS\sX\s([\d_]+)/.test(ua)) {
+    os = `macOS ${ua.match(/Mac\sOS\sX\s([\d_]+)/)[1].replace(/_/g, '.')}`;
+  } else if (/Linux/.test(ua)) {
+    os = 'Linux';
+  }
+
+  type = /Mobile|Android|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua) ? 'Mobile' : 'PC';
+  return `${os} (${type})`;
+}
 import Loading from '../../../components/ui/Loading';
 import { formatCPF } from '../../../utils/cpf';
 
@@ -18,8 +49,12 @@ export default function AdminExamDetail() {
   const { data: exam, isLoading } = useExam(uid);
   const printRef = useRef(null);
 
-  if (isLoading) return <AdminLayout><Loading fullPage /></AdminLayout>;
-  if (!exam) return <AdminLayout><p>Prova não encontrada</p></AdminLayout>;
+  if (isLoading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <Loading />
+    </div>
+  );
+  if (!exam) return <p>Prova não encontrada</p>;
 
   const minutes = Math.floor((exam.duration || 0) / 60);
   const seconds = (exam.duration || 0) % 60;
@@ -77,10 +112,10 @@ export default function AdminExamDetail() {
   };
 
   return (
-    <AdminLayout>
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 className="title is-4" style={{ margin: 0 }}>Detalhes da Prova</h1>
-        <button className="button is-link" onClick={handlePrint}>
+        <button className="btn-dhl is-info" onClick={handlePrint}>
           <span className="icon"><i className="fas fa-file-pdf" /></span>
           <span>Gerar PDF</span>
         </button>
@@ -169,7 +204,7 @@ export default function AdminExamDetail() {
             </thead>
             <tbody>
               {(exam.answers || []).map((answer, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #F0F0F0' }}>
+                <tr key={answer.question} style={{ borderBottom: '1px solid #F0F0F0' }}>
                   <td style={{ padding: '5px 8px', color: '#999' }}>{idx + 1}</td>
                   <td style={{ padding: '5px 8px' }}>{answer.question}</td>
                   <td style={{ padding: '5px 8px', fontWeight: 500 }}>{answer.selectedAnswer}</td>
@@ -211,6 +246,7 @@ export default function AdminExamDetail() {
               <img
                 src={exam.signature || exam.signatureUrl}
                 alt="Assinatura"
+                loading="lazy"
                 style={{ maxHeight: 80, border: '1px solid #ddd', borderRadius: 4, padding: 4, background: '#fff' }}
               />
               <div style={{ flex: 1, minWidth: 200, fontSize: '0.8rem' }}>
@@ -219,13 +255,13 @@ export default function AdminExamDetail() {
                 <p><strong>Data/Hora:</strong> {signatureDateStr}</p>
                 <p><strong>IP:</strong> {exam.signatureIp || '-'}</p>
                 {exam.signatureUserAgent && (
-                  <p style={{ fontSize: '0.7rem', wordBreak: 'break-all' }}><strong>Dispositivo:</strong> {exam.signatureUserAgent}</p>
+                  <p style={{ fontSize: '0.8rem' }}><strong>Dispositivo:</strong> {parseUserAgent(exam.signatureUserAgent)}</p>
                 )}
               </div>
             </div>
           </div>
         )}
       </div>
-    </AdminLayout>
+    </div>
   );
 }

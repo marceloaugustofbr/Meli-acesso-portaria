@@ -10,6 +10,19 @@ import ExamLayout from '../../../components/ui/ExamLayout';
 import Loading from '../../../components/ui/Loading';
 import { downloadQRCode } from '../../../utils/qr';
 
+function useStoreHydrated() {
+  const [hydrated, setHydrated] = useState(() => useExamStore.persist.hasHydrated());
+
+  useEffect(() => {
+    const unsub = useExamStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    return () => { unsub(); };
+  }, []);
+
+  return hydrated;
+}
+
 function AnimatedNumber({ value, duration = 800 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
@@ -44,16 +57,30 @@ export default function ExamResult() {
     }),
     shallow
   );
+  const hydrated = useStoreHydrated();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [cooldown, setCooldown] = useState(null);
   const [attemptCount, setAttemptCount] = useState(0);
   const [result, setResult] = useState(null);
   const savingRef = useRef(false);
   const qrRef = useRef(null);
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  const identificationRef = useRef(identification);
+  identificationRef.current = identification;
+  const startTimeRef = useRef(startTime);
+  startTimeRef.current = startTime;
+  const signatureRef = useRef(signature);
+  signatureRef.current = signature;
+  const signatureIpRef = useRef(signatureIp);
+  signatureIpRef.current = signatureIp;
+  const signatureUserAgentRef = useRef(signatureUserAgent);
+  signatureUserAgentRef.current = signatureUserAgent;
 
   const handleDownloadQR = useCallback(() => {
-    downloadQRCode(qrRef, identification?.cpf);
-  }, [identification]);
+    downloadQRCode(qrRef, identificationRef.current?.cpf);
+  }, []);
 
   const endTime = useMemo(() => new Date().toISOString(), []);
 
@@ -64,13 +91,27 @@ export default function ExamResult() {
   const seconds = duration % 60;
 
   useEffect(() => {
-    if (identification?.cpf) {
-      examService.countByCpf(identification.cpf).then(setAttemptCount);
+    if (identificationRef.current?.cpf) {
+      examService.countByCpf(identificationRef.current.cpf).then(setAttemptCount).catch(() => {});
     }
-  }, [identification]);
+  }, []);
 
   useEffect(() => {
-    if (savingRef.current || result) return undefined;
+    if (!hydrated) return undefined;
+    if (savingRef.current || result || cooldown) return undefined;
+
+    const ident = identificationRef.current;
+    const ans = answersRef.current;
+    const sTime = startTimeRef.current;
+    const sig = signatureRef.current;
+    const sigIp = signatureIpRef.current;
+    const sigUa = signatureUserAgentRef.current;
+
+    if (!ans || ans.length === 0) {
+      setSaveError('Nenhuma resposta encontrada. Por favor, refaça a prova.');
+      return undefined;
+    }
+
     savingRef.current = true;
     setSaving(true);
 
@@ -78,52 +119,113 @@ export default function ExamResult() {
 
     (async () => {
       try {
-        // O Worker calcula a nota server-side com as respostas corretas
         const examData = {
-          name: identification?.name,
-          cpf: identification?.cpf,
-          city: identification?.city,
-          operationType: identification?.operationType,
-          startTime,
+          name: ident?.name,
+          cpf: ident?.cpf,
+          city: ident?.city,
+          operationType: ident?.operationType,
+          startTime: sTime,
           endTime,
           duration,
-          answers,
-          signature: signature || null,
-          signatureIp: signatureIp || null,
+          answers: ans,
+          signature: sig || null,
+          signatureIp: sigIp || null,
           signatureDate: new Date().toISOString(),
-          signatureUserAgent: signatureUserAgent || null,
+          signatureUserAgent: sigUa || null,
         };
         const response = await examService.create(examData);
         if (mounted) {
           setResult({
             correctCount: response.score,
-            total: answers.length,
-            wrongCount: answers.length - response.score,
+            total: ans.length,
+            wrongCount: ans.length - response.score,
             percentage: response.percentage,
             status: response.status,
           });
+          setAttemptCount(response.attempts || 1);
           setSaving(false);
         }
       } catch (err) {
-        // Erro silenciado — estado de erro já é tratado na UI
-        if (mounted) {
-          setSaveError(err.message || 'Erro ao salvar. Tente novamente.');
-          setSaving(false);
-          savingRef.current = false;
+        if (!mounted) return;
+        const msg = err.message || '';
+        const match = msg.match(/(\d+)\s*minuto/);
+        if (match) {
+          setCooldown(parseInt(match[1], 10));
+        } else {
+          setSaveError(msg || 'Erro ao salvar. Tente novamente.');
         }
+        setSaving(false);
+        savingRef.current = false;
       }
     })();
 
     return () => { mounted = false; };
-  }, []);
+  }, [hydrated]);
 
   const finalStatus = result?.status;
-  const showLoading = saving && !result;
+  const showLoading = saving && !result && !cooldown;
+
+  if (cooldown) {
+    return (
+      <ExamLayout>
+        <div className="stagger" style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%', background: '#FFF3E0',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1rem',
+          }}>
+            <i className="fas fa-clock" style={{ fontSize: '2rem', color: '#E65100' }} />
+          </div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#E65100', margin: '0 0 0.25rem' }}>
+            Aguarde para refazer
+          </h1>
+          <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.5rem' }}>
+            Você precisa aguardar <strong>{cooldown} minuto(s)</strong> antes de refazer a prova.
+          </p>
+          <p style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1.5rem' }}>
+            Tentativa {attemptCount}ª
+          </p>
+          <button onClick={() => { reset(); history.push(ROUTES.ROOT); }}
+            style={{ padding: '0.75rem 2rem', background: '#E65100', color: '#fff',
+                     border: 'none', borderRadius: 8, fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}>
+            <i className="fas fa-arrow-left" style={{ marginRight: 8 }} />
+            Voltar
+          </button>
+        </div>
+      </ExamLayout>
+    );
+  }
 
   if (showLoading) {
     return (
       <ExamLayout>
         <Loading fullPage text="Salvando resultado..." />
+      </ExamLayout>
+    );
+  }
+
+  if (saveError && !result) {
+    return (
+      <ExamLayout>
+        <div className="stagger" style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%', background: '#FFEBEE',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1rem',
+          }}>
+            <i className="fas fa-exclamation-triangle" style={{ fontSize: '2rem', color: '#D32F2F' }} />
+          </div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#D32F2F', margin: '0 0 0.25rem' }}>
+            Erro ao salvar
+          </h1>
+          <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1.5rem' }}>{saveError}</p>
+          <button onClick={() => { reset(); history.push(ROUTES.ROOT); }}
+            style={{ padding: '0.75rem 2rem', background: '#D32F2F', color: '#fff',
+                     border: 'none', borderRadius: 8, fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}>
+            <i className="fas fa-arrow-left" style={{ marginRight: 8 }} />
+            Voltar
+          </button>
+        </div>
       </ExamLayout>
     );
   }
@@ -173,37 +275,50 @@ export default function ExamResult() {
                 Próximos passos
               </p>
               <p style={{ fontSize: '0.82rem', color: '#1E3A5F', margin: 0, lineHeight: 1.5 }}>
-                Você está apto a acessar a operação. Dirija-se à <strong>portaria interna</strong> e apresente seu
-                <strong> CPF</strong> para ser liberado.
+                Você está apto a acessar a operação. Dirija-se à <strong>portaria interna</strong> e apresente o
+                <strong> QR Code abaixo</strong> para ser liberado.
               </p>
             </div>
             <div style={{
-              background: '#fff', borderRadius: 10, padding: '1rem',
+              background: '#fff', borderRadius: 10, padding: '1.25rem',
               marginBottom: '1.5rem', textAlign: 'center',
-              border: '1px solid #E0E0E0',
+              border: '2px solid #28A745',
             }}>
-              <p style={{ fontSize: '0.8rem', color: '#888', fontWeight: 600, margin: '0 0 0.75rem' }}>
+              <p style={{ fontSize: '0.8rem', color: '#28A745', fontWeight: 700, margin: '0 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 <i className="fas fa-qrcode" style={{ marginRight: 6 }} />
-                Comprovante digital
+                Seu passe de acesso
+              </p>
+              <p style={{ fontSize: '0.75rem', color: '#888', margin: '0 0 0.75rem' }}>
+                Apresente este QR Code na portaria para entrar
               </p>
               <QRCodeCanvas
                 ref={qrRef}
                 value={identification?.cpf?.replace(/\D/g, '') || ''}
-                size={140}
+                size={160}
                 level="M"
                 style={{ display: 'block', margin: '0 auto' }}
               />
               <button
                 onClick={handleDownloadQR}
                 style={{
-                  marginTop: '0.75rem', padding: '0.35rem 1rem', fontSize: '0.75rem',
-                  background: '#f5f5f5', color: '#333', border: '1px solid #ddd',
-                  borderRadius: 6, cursor: 'pointer',
+                  marginTop: '0.75rem', padding: '0.45rem 1.25rem', fontSize: '0.8rem',
+                  background: '#28A745', color: '#fff', border: 'none',
+                  borderRadius: 6, cursor: 'pointer', fontWeight: 600,
                 }}
               >
                 <i className="fas fa-download" style={{ marginRight: 6 }} />
-                Baixar QR Code
+                Salvar QR Code
               </button>
+              <div style={{
+                marginTop: '0.75rem', padding: '0.5rem 0.75rem',
+                background: '#FFF8E1', borderRadius: 6,
+                display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
+              }}>
+                <i className="fas fa-key" style={{ color: '#F9A825', fontSize: '0.75rem', marginTop: 2, flexShrink: 0 }} />
+                <p style={{ fontSize: '0.72rem', color: '#6D4C00', margin: 0, lineHeight: 1.4, textAlign: 'left' }}>
+                  Sem o QR Code? Apresente seu <strong>CPF</strong> diretamente na portaria.
+                </p>
+              </div>
             </div>
           </>
         )}
@@ -258,7 +373,7 @@ export default function ExamResult() {
           </div>
 
           <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.85rem', color: '#888' }}>
-            {minutes}min {seconds}s • Tentativa {attemptCount + 1}ª
+            {minutes}min {seconds}s • Tentativa {attemptCount}ª
           </div>
         </div>
 

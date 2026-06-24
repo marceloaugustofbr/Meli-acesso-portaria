@@ -118,10 +118,9 @@ export default function ExamCheck() {
               </div>
 
               <button
-                className={classNames('button is-medium is-fullwidth', { 'is-loading': checking })}
+                className={classNames('btn-dhl is-medium is-fullwidth', { 'is-loading': checking })}
                 disabled={cpf.replace(/\D/g, '').length !== 11 || !!cpfError || checking}
                 onClick={handleCheck}
-                style={{ background: '#D40511', color: '#fff', border: 'none' }}
               >
                 Verificar
               </button>
@@ -217,12 +216,9 @@ export default function ExamCheck() {
                     style={{ display: 'block', margin: '0 auto' }}
                   />
                   <button
+                    className="btn-dhl is-small is-ghost"
                     onClick={handleDownloadQR}
-                    style={{
-                      marginTop: '0.75rem', padding: '0.35rem 1rem', fontSize: '0.75rem',
-                      background: '#f5f5f5', color: '#333', border: '1px solid #ddd',
-                      borderRadius: 6, cursor: 'pointer',
-                    }}
+                    style={{ marginTop: '0.75rem' }}
                   >
                     <i className="fas fa-download" style={{ marginRight: 6 }} />
                     Baixar QR Code
@@ -232,9 +228,8 @@ export default function ExamCheck() {
 
               <div style={{ textAlign: 'center', marginTop: 16 }}>
                 <button
-                  className="button is-medium"
+                  className="btn-dhl is-medium is-success"
                   onClick={handleFinish}
-                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#28A745', color: '#fff', border: 'none' }}
                 >
                   <span className="icon is-small"><i className="fas fa-check" /></span>
                   <span>FINALIZAR</span>
@@ -316,17 +311,15 @@ export default function ExamCheck() {
 
               <div style={{ textAlign: 'center', marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
                 <button
-                  className="button is-medium"
+                  className="btn-dhl is-medium"
                   onClick={handleRetake}
-                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#D40511', color: '#fff', border: 'none' }}
                 >
                   <span className="icon is-small"><i className="fas fa-redo" /></span>
                   <span>REFAZER PROVA</span>
                 </button>
                 <button
-                  className="button is-medium"
+                  className="btn-dhl is-medium is-outline"
                   onClick={handleFinish}
-                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#fff', color: '#D40511', border: '2px solid #D40511' }}
                 >
                   <span className="icon is-small"><i className="fas fa-sign-out-alt" /></span>
                   <span>SAIR</span>
@@ -400,9 +393,8 @@ export default function ExamCheck() {
 
               <div style={{ textAlign: 'center', marginTop: 16 }}>
                 <button
-                  className="button is-medium"
+                  className="btn-dhl is-medium is-outline"
                   onClick={handleFinish}
-                  style={{ borderRadius: 8, paddingLeft: 32, paddingRight: 32, background: '#fff', color: '#D40511', border: '2px solid #D40511' }}
                 >
                   <span className="icon is-small"><i className="fas fa-sign-out-alt" /></span>
                   <span>SAIR</span>
@@ -488,17 +480,15 @@ export default function ExamCheck() {
 
               <div style={{ textAlign: 'center', marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
-                  className="button is-medium"
+                  className="btn-dhl is-medium"
                   onClick={handleProceed}
-                  style={{ borderRadius: 8, paddingLeft: 24, paddingRight: 24, background: '#D40511', color: '#fff', border: 'none', minWidth: 180 }}
                 >
                   <span className="icon is-small"><i className="fas fa-play" /></span>
                   <span>INICIAR TREINAMENTO</span>
                 </button>
                 <button
-                  className="button is-medium"
+                  className="btn-dhl is-medium is-outline"
                   onClick={handleFinish}
-                  style={{ borderRadius: 8, paddingLeft: 24, paddingRight: 24, background: '#fff', color: '#D40511', border: '2px solid #D40511', minWidth: 120 }}
                 >
                   <span className="icon is-small"><i className="fas fa-sign-out-alt" /></span>
                   <span>VOLTAR</span>

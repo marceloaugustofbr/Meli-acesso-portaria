@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 import { useExamStore } from '../../../store';
 import ROUTES from '../../../constants/routes';
 
-const stepOrder = ['intro', 'check', 'rules', 'video', 'identification', 'questions', 'terms', 'signature', 'result'];
+const stepOrder = ['intro', 'check', 'rules', 'identification', 'video', 'questions', 'terms', 'signature', 'result'];
 const INTEGRITY_SALT = 'sa-exam-v2';
 
 function hashCode(str) {

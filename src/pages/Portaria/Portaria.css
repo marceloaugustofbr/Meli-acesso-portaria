@@ -1,0 +1,366 @@
+/* Portaria page styles */
+
+.portaria-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-family: var(--font-family, 'Nunito', sans-serif);
+}
+
+.portaria-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0, 0, 0, 0.3));
+}
+
+.portaria-card-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.portaria-card-header-top {
+  text-align: right;
+  margin-bottom: 6px;
+}
+
+.portaria-logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.portaria-logo-row img {
+  height: 32px;
+}
+
+.portaria-logo-text {
+  text-align: left;
+}
+
+.portaria-logo-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dhl-red, #D40511);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.portaria-logo-sub {
+  font-size: 0.7rem;
+  color: var(--gray-dark, #999);
+  margin: 0;
+}
+
+/* PIN Access Form */
+.portaria-pin-form {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.portaria-pin-icon {
+  font-size: 2rem;
+  color: var(--dhl-red, #D40511);
+  margin-bottom: 16px;
+}
+
+.portaria-pin-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--dhl-red, #D40511);
+  margin: 0 0 4px;
+}
+
+.portaria-pin-subtitle {
+  font-size: 0.85rem;
+  color: var(--gray-dark, #888);
+  margin: 0 0 20px;
+}
+
+.portaria-pin-input {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.portaria-pin-error {
+  font-size: 0.8rem;
+  color: var(--color-error, #D32F2F);
+  margin: 0 0 12px;
+}
+
+/* CPF Field */
+.portaria-cpf-label {
+  font-size: 0.85rem;
+  color: #555;
+  display: block;
+  margin-bottom: 0.5em;
+  font-weight: 700;
+}
+
+/* Action Buttons */
+.portaria-btn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Loading State */
+.portaria-loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.portaria-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #eee;
+  border-top-color: var(--dhl-red, #D40511);
+  border-radius: 50%;
+  animation: portaria-spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+.portaria-loading-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #555;
+  margin: 0;
+}
+
+@keyframes portaria-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Result Cards */
+.portaria-result-card {
+  border-radius: 16px;
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.portaria-result-card.is-approved {
+  background: #f0fdf4;
+  border: 2px solid var(--color-success, #28A745);
+}
+
+.portaria-result-card.is-reproved {
+  background: var(--color-error-light, #fef2f2);
+  border: 2px solid var(--color-error-border, #ef4444);
+}
+
+.portaria-result-card.is-blocked {
+  background: var(--color-blocked-light, #fff7ed);
+  border: 2px solid var(--color-blocked-border, #f97316);
+}
+
+.portaria-result-card.is-notfound {
+  background: var(--color-notfound-light, #fefce8);
+  border: 2px solid var(--color-notfound-border, #eab308);
+}
+
+.portaria-result-card.is-error {
+  background: var(--color-error-light, #fef2f2);
+  border: 2px solid var(--color-error-border, #ef4444);
+}
+
+.portaria-result-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.portaria-result-icon.approved {
+  background: #dcfce7;
+}
+
+.portaria-result-icon.approved i {
+  font-size: 2rem;
+  color: var(--color-success, #28A745);
+}
+
+.portaria-result-icon.reproved {
+  background: #fee2e2;
+}
+
+.portaria-result-icon.reproved i {
+  font-size: 2rem;
+  color: var(--color-error, #dc2626);
+}
+
+.portaria-result-icon.blocked {
+  background: #ffedd5;
+}
+
+.portaria-result-icon.blocked i {
+  font-size: 2rem;
+  color: var(--color-blocked, #ea580c);
+}
+
+.portaria-result-icon.notfound {
+  background: #fef9c3;
+}
+
+.portaria-result-icon.notfound i {
+  font-size: 1.8rem;
+  color: var(--color-notfound, #ca8a04);
+}
+
+.portaria-result-icon.errored {
+  background: #fee2e2;
+}
+
+.portaria-result-icon.errored i {
+  font-size: 1.8rem;
+  color: var(--color-error, #dc2626);
+}
+
+.portaria-result-status {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.portaria-result-status.approved {
+  color: var(--color-success, #28A745);
+}
+
+.portaria-result-status.reproved {
+  color: var(--color-error, #dc2626);
+}
+
+.portaria-result-status.blocked {
+  color: var(--color-blocked, #ea580c);
+}
+
+.portaria-result-status.notfound {
+  font-size: 1.4rem;
+  color: var(--color-notfound, #a16207);
+}
+
+.portaria-result-status.error {
+  font-size: 1.3rem;
+  color: var(--color-error, #dc2626);
+}
+
+.portaria-result-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gray-900, #1a1a2e);
+  margin: 10px 0 2px;
+}
+
+.portaria-result-cpf {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #666);
+  margin: 0;
+}
+
+.portaria-result-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.portaria-result-details.single {
+  grid-template-columns: 1fr;
+  text-align: left;
+}
+
+.portaria-result-detail-label {
+  font-size: 0.65rem;
+  color: var(--text-muted, #999);
+  margin: 0;
+}
+
+.portaria-result-detail-value {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: 2px 0 0;
+  color: var(--gray-800, #333);
+}
+
+.portaria-result-stats {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.portaria-result-stat-label {
+  font-size: 0.65rem;
+  color: #999;
+  margin: 0;
+}
+
+.portaria-result-stat-value {
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 2px 0 0;
+}
+
+.portaria-result-stat-value.approved {
+  color: var(--color-success, #28A745);
+}
+
+.portaria-result-stat-value.reproved {
+  color: var(--color-error, #dc2626);
+}
+
+.portaria-block-reason {
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.portaria-block-reason-header {
+  font-size: 0.7rem;
+  color: var(--color-blocked, #ea580c);
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.portaria-block-reason-header i {
+  margin-right: 4px;
+}
+
+.portaria-block-reason-text {
+  font-size: 0.85rem;
+  color: var(--gray-800, #333);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.portaria-block-date {
+  font-size: 0.7rem;
+  color: var(--text-muted, #999);
+  margin-top: 6px;
+}
+
+.portaria-result-message {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  margin: 10px 0 0;
+}
+
+.portaria-result-btn {
+  margin-top: 16px;
+}

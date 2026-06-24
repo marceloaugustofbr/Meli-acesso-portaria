@@ -36,7 +36,7 @@ export default function ExamIntro() {
         <div className="has-text-centered" style={{ marginBottom: '2rem' }}>
           <div style={{ margin: '0 auto 1.25rem', textAlign: 'center' }}>
             <img
-              src="/LOGOSAFEACESS.png"
+              src="/LOGOSAFEACESS.webp"
               alt="SafeAcess"
               style={{ width: 200, userSelect: 'none', WebkitUserDrag: 'none' }}
               draggable="false"
